@@ -1,0 +1,9 @@
+<package>
+    <description brief="Kuka FRI typekit package">
+        This package contains the components of the Kuka FRI typekit package
+    </description>
+    <license></license>
+    <author> Ruben Smits, ruben.smits@mech.kuleuven.be</author>
+    <depend package="rtt" />
+</package>
+

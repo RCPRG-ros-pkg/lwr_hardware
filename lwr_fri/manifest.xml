@@ -1,0 +1,22 @@
+<package>
+  <description brief="LWR">
+
+     LWR FRI components
+
+  </description>
+  <author>Ruben Smits</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/LWR</url>
+
+  <depend package="rtt"/>
+  <depend package="kdl"/>
+  <depend package="rtt_ros_integration_geometry_msgs"/>
+  <depend package="rtt_ros_integration_sensor_msgs"/>
+  <depend package="rtt_ros_integration_diagnostic_msgs"/>
+  <depend package="rtt_ros_integration_std_msgs"/>
+  <depend package="tf_conversions"/>
+  <depend package="kuka_lwr_fri"/>
+</package>
+
+

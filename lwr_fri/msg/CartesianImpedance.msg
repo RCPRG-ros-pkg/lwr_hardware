@@ -1,0 +1,2 @@
+geometry_msgs/Twist stiffness
+geometry_msgs/Twist damping
