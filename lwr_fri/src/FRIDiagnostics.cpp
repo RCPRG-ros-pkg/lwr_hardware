@@ -16,8 +16,10 @@ namespace LWR{
     FriStatePort("FriState")
   {
     this->addPort("RobotState", RobotStatePort);
-		this->addPort("FriState", FriStatePort);
-		this->addPort("diagnostic", port_diagnostic);
+	this->addPort("FriState", FriStatePort);
+	this->addPort("diagnostic", port_diagnostic);
+
+	this->addProperty("diagnostic_prefix", prop_diagnostic_prefix);
   }
 
   FRIDiagnostics::~FRIDiagnostics(){
@@ -29,7 +31,7 @@ namespace LWR{
 		diagnostic.status[0].values.resize(11);
 		diagnostic.status[1].values.resize(4);
 
-		diagnostic.status[0].name = "FRI state";
+		diagnostic.status[0].name = prop_diagnostic_prefix + " FRI state";
 		diagnostic.status[0].values[0].key = "Kuka System Time";
 		diagnostic.status[0].values[1].key = "State";
 		diagnostic.status[0].values[2].key = "Quality";
@@ -42,7 +44,7 @@ namespace LWR{
 		diagnostic.status[0].values[9].key = "Average Missed Answer Packages";
 		diagnostic.status[0].values[10].key = "Total Missed Packages";
 
-		diagnostic.status[1].name = "robot state";
+		diagnostic.status[1].name = prop_diagnostic_prefix + " robot state";
 		diagnostic.status[1].values[0].key = "Power";
 		diagnostic.status[1].values[1].key = "Control Strategy";
 		diagnostic.status[1].values[2].key = "Error";
