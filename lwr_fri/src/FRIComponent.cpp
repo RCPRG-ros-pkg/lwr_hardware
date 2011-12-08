@@ -70,6 +70,7 @@ FRIComponent::FRIComponent(const string& name) :
 	this->addPort("CartesianWrenchCommand", port_cart_wrench_command);
 	this->addPort("CartesianImpedanceCommand", port_cart_impedance_command);
 
+	this->addPort("Jacobian", port_jacobian);
 
 	this->addProperty("udp_port", prop_local_port);
 	/*
@@ -111,6 +112,8 @@ bool FRIComponent::configureHook() {
 	m_joint_states.name.resize(LBR_MNJ);
 	m_joint_states.position.resize(LBR_MNJ);
 	m_joint_states.effort.resize(LBR_MNJ);
+
+	jac.resize(LBR_MNJ);
 
 	for (unsigned int i = 0; i < LBR_MNJ; i++) {
 		ostringstream ss;
@@ -221,14 +224,20 @@ void FRIComponent::updateHook() {
 //		 tf::PoseKDLToMsg(cartPos,m_cartPos);
 //		 m_cmdCartPosFriOffsetPort.write(m_cartPos);
 
-		 m_cartWrench.force.x = m_msr_data.data.estExtTcpFT[0];
-		 m_cartWrench.force.y = m_msr_data.data.estExtTcpFT[1];
-		 m_cartWrench.force.z = m_msr_data.data.estExtTcpFT[2];
-		 m_cartWrench.torque.x = m_msr_data.data.estExtTcpFT[5];
-		 m_cartWrench.torque.y = m_msr_data.data.estExtTcpFT[4];
-		 m_cartWrench.torque.z = m_msr_data.data.estExtTcpFT[3];
-		 port_cart_wrench_msr.write(m_cartWrench);
+		m_cartWrench.force.x = m_msr_data.data.estExtTcpFT[0];
+		m_cartWrench.force.y = m_msr_data.data.estExtTcpFT[1];
+		m_cartWrench.force.z = m_msr_data.data.estExtTcpFT[2];
+		m_cartWrench.torque.x = m_msr_data.data.estExtTcpFT[5];
+		m_cartWrench.torque.y = m_msr_data.data.estExtTcpFT[4];
+		m_cartWrench.torque.z = m_msr_data.data.estExtTcpFT[3];
+	  port_cart_wrench_msr.write(m_cartWrench);
 
+    for ( int i = 0; i < FRI_CART_VEC; i++)
+      for ( int j = 0; j < LBR_MNJ; j++)
+        jac(i,j) = m_msr_data.data.jacobian[i*LBR_MNJ+j];
+    //Kuka uses Tx, Ty, Tz, Rz, Ry, Rx convention, so we need to swap Rz and Rx
+    jac.data.row(3).swap(jac.data.row(5));
+    port_jacobian.write(jac);
 
 		//Fill in datagram to send:
 		m_cmd_data.head.datagramId = FRI_DATAGRAM_ID_CMD;

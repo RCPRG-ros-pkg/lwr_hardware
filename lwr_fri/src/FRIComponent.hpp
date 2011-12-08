@@ -106,7 +106,7 @@ private:
 
 	OutputPort<geometry_msgs::Pose>  port_cart_pos_msr;
 	OutputPort<geometry_msgs::Wrench> port_cart_wrench_msr;
-	//RTT::OutputPort<KDL::Jacobian> jacobianPort;
+	RTT::OutputPort<KDL::Jacobian> port_jacobian;
 	//RTT::OutputPort<Eigen::MatrixXd > massMatrixPort;
 
 	/**
@@ -121,6 +121,8 @@ private:
 	InputPort<geometry_msgs::Twist> port_cart_vel_command;
 	InputPort<geometry_msgs::Wrench> port_cart_wrench_command;
 	InputPort<lwr_fri::CartesianImpedance> port_cart_impedance_command;
+
+	KDL::Jacobian jac;
 
 	std::vector<double> m_joint_pos;
 	std::vector<double> m_joint_trq;
