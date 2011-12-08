@@ -24,10 +24,10 @@ set (ROS_ROOT $ENV{ROS_ROOT} )
 include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 rosbuild_init()
 rosbuild_find_ros_package( rtt )
-set( RTT_HINTS HINTS ${rtt_PACKAGE_PATH}/install )
+set( RTT_HINTS HINTS ${rtt_PACKAGE_PATH}/../install )
 
 rosbuild_genmsg()
-rosbuild_include(rtt_ros_integration GenerateRTTtypekit )
+rosbuild_include(rtt_rosnode GenerateRTTtypekit )
 ros_generate_rtt_typekit(lwr_fri)
 
 # Set the CMAKE_PREFIX_PATH in case you're not using Orocos through ROS
@@ -40,7 +40,7 @@ include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake)
 
 #common commands for building c++ executables and libraries
 find_path(RTNET_INCLUDE_DIR NAMES rtnet.h PATH_SUFFIXES rtnet/include)
-if(RTNET_INCLUDE_DIR)
+if(RTNET_INCLUDE_DIR AND ${OROCOS_TARGET} STREQUAL "xenomai" )
   message("Found RTNET: ${RTNET_INCLUDE_DIR}")
   include_directories(${RTNET_INCLUDE_DIR})
   add_definitions(-DHAVE_RTNET)
@@ -54,7 +54,12 @@ if(RTNET_INCLUDE_DIR)
   orocos_add_link_flags(lwr_fri ${XENO_LDFLAGS})
 else()
   orocos_component(lwr_fri src/FRIComponent.cpp) # ...you may add multiple source files
-	orocos_component(lwr_diagnostics src/FRIDiagnostics.cpp)
+  orocos_component(lwr_diagnostics src/FRIDiagnostics.cpp)
 endif()
-target_link_libraries(lwr_fri rtt-ros-lwr_fri-typekit)
 
+# Link with the ROS .msg typekit of this package
+# rtt-lwr_fri-typekit is the cmake target defined by ros_generate_rtt_typekit() above
+target_link_libraries(lwr_fri rtt-lwr_fri-typekit )
+
+# Generates the typekit which defines float32[7]
+orocos_typekit(lwr_fri_typekit lwr_fri-typekit.cpp)

@@ -46,12 +46,12 @@ using namespace RTT;
     InputPort<tFriRobotState> RobotStatePort;
     InputPort<tFriIntfState> FriStatePort;
 
-	OutputPort<diagnostic_msgs::DiagnosticArray> port_diagnostic;
+    OutputPort<diagnostic_msgs::DiagnosticArray> port_diagnostic;
 
     tFriIntfState fristate;
     tFriRobotState robotstate;
 
-	diagnostic_msgs::DiagnosticArray diagnostic;
+    diagnostic_msgs::DiagnosticArray diagnostic;
 
     void fri_robot_diagnostics();
     void fri_comm_diagnostics();

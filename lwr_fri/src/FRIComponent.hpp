@@ -32,12 +32,14 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/jacobian.hpp>
 
+#include <kuka_lwr_fri/friComm.h>
+
 #include <lwr_fri/typekit/Types.h>
 #include <sensor_msgs/typekit/Types.h>
 #include <geometry_msgs/typekit/Types.h>
 #include <std_msgs/typekit/Types.h>
 
-#include <kuka_lwr_fri/friComm.h>
+
 //#include <kuka_lwr_fri/typekit/Types.h>
 
 namespace lwr_fri {
