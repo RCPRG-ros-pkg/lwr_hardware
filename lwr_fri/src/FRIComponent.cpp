@@ -57,6 +57,8 @@ FRIComponent::FRIComponent(const string& name) :
 	this->addPort("JointPosition", port_joint_pos_msr);
 	this->addPort("JointTorque", port_joint_trq_msr);
 
+  this->addPort("DesiredJointPosition", port_joint_pos_des);
+
 	this->addPort("CartesianPosition", port_cart_pos_msr);
 	this->addPort("CartesianWrench", port_cart_wrench_msr);
 
@@ -108,6 +110,8 @@ bool FRIComponent::configureHook() {
 	//Resizing dynamic size objects
 	m_joint_pos.resize(LBR_MNJ);
 	m_joint_trq.resize(LBR_MNJ);
+
+  m_joint_pos_des.resize(LBR_MNJ);
 
 	m_joint_states.name.resize(LBR_MNJ);
 	m_joint_states.position.resize(LBR_MNJ);
@@ -444,6 +448,11 @@ void FRIComponent::updateHook() {
 			}
 		}//End command mode
 
+    for (unsigned int i = 0; i < LBR_MNJ; i++) {
+		  m_joint_pos_des[i] = m_cmd_data.cmd.jntPos[i];
+		  port_joint_pos_des.write(m_joint_pos_des);
+		}
+								
 		//m_cmd_data.krl = m_toKRL;
 		if (fri_send() != 0)
 			;//this->error();
