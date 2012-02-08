@@ -110,6 +110,8 @@ private:
 	OutputPort<geometry_msgs::Wrench> port_cart_wrench_msr;
 	RTT::OutputPort<KDL::Jacobian> port_jacobian;
 	//RTT::OutputPort<Eigen::MatrixXd > massMatrixPort;
+	
+	OutputPort<double> port_command_period;
 
 	/**
 	 * Robot commands

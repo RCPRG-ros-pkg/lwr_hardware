@@ -72,6 +72,7 @@ FRIComponent::FRIComponent(const string& name) :
 	this->addPort("CartesianWrenchCommand", port_cart_wrench_command);
 	this->addPort("CartesianImpedanceCommand", port_cart_impedance_command);
 
+  this->addPort("CommandPeriod", port_command_period);
 	this->addPort("Jacobian", port_jacobian);
 
 	this->addProperty("udp_port", prop_local_port);
@@ -163,6 +164,8 @@ void FRIComponent::updateHook() {
 		port_robot_state.write(m_msr_data.robot);
 		port_fri_state.write(m_msr_data.intf);
 
+    //port_command_period.write(m_msr_data.intf.desiredCmdSampleTime);
+
 		//Put KRL data onto the ports(no parsing)
 		//port_from_krl.write(m_msr_data.krl);
 
@@ -201,32 +204,6 @@ void FRIComponent::updateHook() {
 		cartPos.p.z(m_msr_data.data.msrCartPos[11]);
 		tf::PoseKDLToMsg(cartPos,m_cartPos);
 		port_cart_pos_msr.write(m_cartPos);
-
-//		cartPos.M = KDL::Rotation(m_msr_data.data.cmdCartPos[0],
-//		m_msr_data.data.cmdCartPos[1], m_msr_data.data.cmdCartPos[2],
-//		 m_msr_data.data.cmdCartPos[4], m_msr_data.data.cmdCartPos[5],
-//		 m_msr_data.data.cmdCartPos[6], m_msr_data.data.cmdCartPos[8],
-//		 m_msr_data.data.cmdCartPos[9], m_msr_data.data.cmdCartPos[10]);
-//		 cartPos.p.x(m_msr_data.data.cmdCartPos[3]);
-//		 cartPos.p.y(m_msr_data.data.cmdCartPos[7]);
-//		 cartPos.p.z(m_msr_data.data.cmdCartPos[11]);
-//		 tf::PoseKDLToMsg(cartPos,m_cartPos);
-//		 m_cmdCartPosPort.write(m_cartPos);
-
-//		 cartPos.M = KDL::Rotation(m_msr_data.data.cmdCartPosFriOffset[0],
-//		 m_msr_data.data.cmdCartPosFriOffset[1],
-//		 m_msr_data.data.cmdCartPosFriOffset[2],
-//		 m_msr_data.data.cmdCartPosFriOffset[4],
-//		 m_msr_data.data.cmdCartPosFriOffset[5],
-//		 m_msr_data.data.cmdCartPosFriOffset[6],
-//		 m_msr_data.data.cmdCartPosFriOffset[8],
-//		 m_msr_data.data.cmdCartPosFriOffset[9],
-//		 m_msr_data.data.cmdCartPosFriOffset[10]);
-//		 cartPos.p.x(m_msr_data.data.cmdCartPosFriOffset[3]);
-//		 cartPos.p.y(m_msr_data.data.cmdCartPosFriOffset[7]);
-//		 cartPos.p.z(m_msr_data.data.cmdCartPosFriOffset[11]);
-//		 tf::PoseKDLToMsg(cartPos,m_cartPos);
-//		 m_cmdCartPosFriOffsetPort.write(m_cartPos);
 
 		m_cartWrench.force.x = m_msr_data.data.estExtTcpFT[0];
 		m_cartWrench.force.y = m_msr_data.data.estExtTcpFT[1];
@@ -454,8 +431,10 @@ void FRIComponent::updateHook() {
 		}
 								
 		//m_cmd_data.krl = m_toKRL;
-		if (fri_send() != 0)
-			;//this->error();
+	fri_send();
+
+  port_command_period.write(m_msr_data.intf.desiredCmdSampleTime);
+
 	}//End fri_recv succesfull
 	this->trigger();
 }
