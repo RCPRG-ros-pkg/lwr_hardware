@@ -1,0 +1,15 @@
+<stack>
+  <description brief="lwr_hardware">lwr_hardware</description>
+  <author>Maintained by Konrad Banachowicz</author>
+  <license>,BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/lwr_hardware</url>
+  <depend stack="geometry" /> <!-- tf_conversions -->
+  <depend stack="orocos_kinematics_dynamics" /> <!-- orocos_kdl -->
+  <depend stack="orocos_toolchain" /> <!-- rtt -->
+  <depend stack="ros" />
+  <depend stack="ros_comm" />
+  <depend stack="rtt_common_msgs" /> <!-- rtt_diagnostic_msgs, rtt_sensor_msgs, rtt_geometry_msgs -->
+  <depend stack="rtt_ros_comm" /> <!-- rtt_std_msgs -->
+
+</stack>
