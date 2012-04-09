@@ -42,6 +42,8 @@
 
 //#include <kuka_lwr_fri/typekit/Types.h>
 
+typedef Eigen::Matrix<double, 7, 7> Matrix77d;
+
 namespace lwr_fri {
 
 using namespace RTT;
@@ -80,7 +82,7 @@ private:
 
 	//OutputPort<tFriKrlData> port_from_krl;
 	//OutputPort<tFriKrlData> port_to_krl;
-	//Eigen::Matrix<double,7,7> m_massTmp; Not correct so useless
+	Matrix77d m_massTmp;
 
 	InputPort<std_msgs::Int32> port_krl_cmd;
 
@@ -109,7 +111,7 @@ private:
 	OutputPort<geometry_msgs::Pose>  port_cart_pos_msr;
 	OutputPort<geometry_msgs::Wrench> port_cart_wrench_msr;
 	RTT::OutputPort<KDL::Jacobian> port_jacobian;
-	//RTT::OutputPort<Eigen::MatrixXd > massMatrixPort;
+	RTT::OutputPort<Matrix77d > massMatrixPort;
 	
 	OutputPort<double> port_command_period;
 

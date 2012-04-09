@@ -220,6 +220,13 @@ void FRIComponent::updateHook() {
     jac.data.row(3).swap(jac.data.row(5));
     port_jacobian.write(jac);
 
+    for(unsigned int i=0;i<LBR_MNJ;i++) {
+      for(unsigned int j=0;j<LBR_MNJ;j++) {
+        	  m_massTmp(i,j)=m_msr_data.data.massMatrix[LBR_MNJ*i+j];
+      }
+    }
+    massMatrixPort.write(m_massTmp);
+
 		//Fill in datagram to send:
 		m_cmd_data.head.datagramId = FRI_DATAGRAM_ID_CMD;
 		m_cmd_data.head.packetSize = sizeof(tFriCmdData);
