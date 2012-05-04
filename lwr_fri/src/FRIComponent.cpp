@@ -74,6 +74,7 @@ FRIComponent::FRIComponent(const string& name) :
 
   this->addPort("CommandPeriod", port_command_period);
 	this->addPort("Jacobian", port_jacobian);
+	this->addPort("MassMatrix", massMatrixPort);
 
 	this->addProperty("udp_port", prop_local_port);
 	/*
