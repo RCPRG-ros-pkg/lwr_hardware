@@ -22,6 +22,8 @@
 #ifndef _FRI_COMPONENT_HPP_
 #define _FRI_COMPONENT_HPP_
 
+#include <string>
+
 #include <rtt/TaskContext.hpp>
 #include <rtt/Port.hpp>
 #include <rtt/Logger.hpp>
