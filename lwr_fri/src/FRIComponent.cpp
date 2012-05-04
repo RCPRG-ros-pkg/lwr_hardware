@@ -36,7 +36,7 @@ namespace lwr_fri {
 
 using namespace RTT;
 
-FRIComponent::FRIComponent(const string& name) :
+FRIComponent::FRIComponent(const std::string& name) :
 	TaskContext(name, PreOperational) {
 
 	//this->addPort("fromKRL", port_from_krl);
@@ -98,7 +98,7 @@ bool FRIComponent::configureHook() {
 		if (!FRI_CHECK_BYTE_ORDER_OK) {
 			log(Error)
 					<< "Byte order and float representations are not OK on this platform :("
-					<< endlog();				cout << "Switching to monitor mode." <<endl;
+					<< endlog();				std::cout << "Switching to monitor mode." << std::endl;
 
 			return false;
 		}
@@ -122,7 +122,7 @@ bool FRIComponent::configureHook() {
 	jac.resize(LBR_MNJ);
 
 	for (unsigned int i = 0; i < LBR_MNJ; i++) {
-		ostringstream ss;
+		std::ostringstream ss;
 		ss << "joint_" << i;
 		m_joint_states.name[i] = ss.str();
 	}
