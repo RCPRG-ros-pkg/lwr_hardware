@@ -5,5 +5,10 @@
     <license></license>
     <author> Ruben Smits, ruben.smits@mech.kuleuven.be</author>
     <depend package="rtt" />
+    
+    <export>
+      <cpp cflags="-I${prefix}/include"/>
+    </export>
+
 </package>
 
