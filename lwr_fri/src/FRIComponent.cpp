@@ -32,15 +32,25 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 
+#ifndef HAVE_RTNET
+
+#define rt_dev_socket socket
+#define rt_dev_setsockopt setsockopt
+#define rt_dev_bind bind
+#define rt_dev_recvfrom recvfrom
+#define rt_dev_sendto sendto
+#define rt_dev_close close
+
+#else
+#include <rtdm/rtdm.h>
+#endif
+
 namespace lwr_fri {
 
 using namespace RTT;
 
 FRIComponent::FRIComponent(const std::string& name) :
 	TaskContext(name, PreOperational) {
-
-	//this->addPort("fromKRL", port_from_krl);
-	//this->addPort("toKRL", port_to_krl);
 
 	this->addPort("KRL_CMD", port_krl_cmd);
 
@@ -77,10 +87,6 @@ FRIComponent::FRIComponent(const std::string& name) :
 	this->addPort("MassMatrix", massMatrixPort);
 
 	this->addProperty("udp_port", prop_local_port);
-	/*
-	 this->addProperty("control_mode", prop_control_mode).doc("1=JntPos, 2=JntVel, 3=JntTrq, 4=CartPos, 5=CartForce, 6=CartTwist");
-	 */
-
 }
 
 FRIComponent::~FRIComponent() {
@@ -141,6 +147,7 @@ bool FRIComponent::startHook() {
 }
 
 void FRIComponent::updateHook() {
+  
 	//Read:
 	if (fri_recv() == 0) {
 
@@ -169,7 +176,13 @@ void FRIComponent::updateHook() {
 
 		//Put KRL data onto the ports(no parsing)
 		//port_from_krl.write(m_msr_data.krl);
-
+    KDL::Frame baseFrame(KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI/180.0,
+                                            m_msr_data.krl.realData[4] * M_PI/180.0,
+                                            m_msr_data.krl.realData[5] * M_PI/180.0),
+                         KDL::Vector(m_msr_data.krl.realData[0]/1000.0,
+                                     m_msr_data.krl.realData[1]/1000.0, 
+                                     m_msr_data.krl.realData[2]/1000.0));
+   //std::cout << baseFrame.p.x() << "  " << baseFrame.p.y() << "  " << baseFrame.p.z()<<std::endl;
 		// Fill in fri_joint_state and joint_state
 		for (unsigned int i = 0; i < LBR_MNJ; i++) {
 			m_fri_joint_state.msrJntPos[i] = m_msr_data.data.msrJntPos[i];
@@ -203,6 +216,7 @@ void FRIComponent::updateHook() {
 		cartPos.p.x(m_msr_data.data.msrCartPos[3]);
 		cartPos.p.y(m_msr_data.data.msrCartPos[7]);
 		cartPos.p.z(m_msr_data.data.msrCartPos[11]);
+		cartPos = baseFrame*cartPos;
 		tf::PoseKDLToMsg(cartPos,m_cartPos);
 		port_cart_pos_msr.write(m_cartPos);
 
@@ -442,8 +456,9 @@ void FRIComponent::updateHook() {
 	fri_send();
 
   port_command_period.write(m_msr_data.intf.desiredCmdSampleTime);
-
 	}//End fri_recv succesfull
+	//if((counter % 1000) == 0)
+	//  log(Error) << "dupa " << counter << endlog();
 	this->trigger();
 }
 
@@ -456,9 +471,9 @@ void FRIComponent::cleanupHook() {
 
 int FRIComponent::fri_create_socket() {
 	if (m_socket != 0)
-		close(m_socket);
-	m_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, 0, 0);
+		rt_dev_close(m_socket);
+	m_socket = rt_dev_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	rt_dev_setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, 0, 0);
 
 	struct sockaddr_in local_addr;
 	bzero((char *) &local_addr, sizeof(local_addr));
@@ -466,7 +481,7 @@ int FRIComponent::fri_create_socket() {
 	local_addr.sin_addr.s_addr = INADDR_ANY;
 	local_addr.sin_port = htons(prop_local_port);
 
-	if (bind(m_socket, (sockaddr*) &local_addr, sizeof(sockaddr_in)) < 0) {
+	if (rt_dev_bind(m_socket, (sockaddr*) &local_addr, sizeof(sockaddr_in)) < 0) {
 		log(Error) << "Binding of port failed with errno " << errno << endlog();
 		return -1;
 	}
@@ -475,7 +490,7 @@ int FRIComponent::fri_create_socket() {
 }
 
 int FRIComponent::fri_recv() {
-	int n = recvfrom(m_socket, (void*) &m_msr_data, sizeof(m_msr_data), 0,
+	int n = rt_dev_recvfrom(m_socket, (void*) &m_msr_data, sizeof(m_msr_data), 0,
 			(sockaddr*) &m_remote_addr, &m_sock_addr_len);
 	if (sizeof(tFriMsrData) != n) {
 		log(Error) << "bad packet length: " << n << ", expected: "
@@ -486,7 +501,7 @@ int FRIComponent::fri_recv() {
 }
 
 int FRIComponent::fri_send() {
-	if (0 > sendto(m_socket, (void*) &m_cmd_data, sizeof(m_cmd_data), 0,
+	if (0 > rt_dev_sendto(m_socket, (void*) &m_cmd_data, sizeof(m_cmd_data), 0,
 			(sockaddr*) &m_remote_addr, m_sock_addr_len)) {
 		log(Error) << "Sending datagram failed." << ntohs(m_remote_addr.sin_port) << endlog();
 		return -1;
