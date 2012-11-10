@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dwds:Component xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:dwds="http://dupa.org/robmod.ecore" type2="Library">
+  <composition name="" type="FRIComponent">
+    <handlers name="Comm" generates="//@composition.0/@outputPorts.7 //@composition.0/@outputPorts.6 //@composition.0/@outputPorts.5 //@composition.0/@outputPorts.4 //@composition.0/@outputPorts.3 //@composition.0/@outputPorts.2 //@composition.0/@outputPorts.1 //@composition.0/@outputPorts.0 //@composition.0/@outputPorts.8 //@composition.0/@outputPorts.9"/>
+    <inputPorts dataType="lwr_fri::CartesianImpedance" name="CartesianImpedanceCommand"/>
+    <inputPorts dataType="geometry_msgs::Wrench" name="CartesianWrenchCommand"/>
+    <inputPorts dataType="geometry_msgs::Pose" name="CartesianPositionCommand"/>
+    <inputPorts dataType="lwr_fri::FriJointImpedance" name="JointImpedanceCommand" description=""/>
+    <inputPorts dataType="std::vector&lt;double>" name="JointPositionCommand"/>
+    <inputPorts dataType="std::vector&lt;double>" name="JointTorqueCommand"/>
+    <inputPorts dataType="std_msgs::Int32" name="KRL_CMD" description=""/>
+    <outputPorts dataType="geometry_msgs::Wrench" name="CartesianWrench"/>
+    <outputPorts dataType="tFriRobotState" name="RobotState"/>
+    <outputPorts dataType="tFriIntfState" name="FRIState"/>
+    <outputPorts dataType="std::vector&lt;double>" name="JointVelocity"/>
+    <outputPorts dataType="geometry_msgs::Twist" name="CartesianVelocity"/>
+    <outputPorts dataType="geometry_msgs::Pose" name="CartesianPosition"/>
+    <outputPorts dataType="Matrix77d" name="MassMatrix"/>
+    <outputPorts dataType="KDL::Jacobian" name="Jacobian"/>
+    <outputPorts dataType="std::vector&lt;double>" name="JointTorque"/>
+    <outputPorts dataType="std::vector&lt;double>" name="JointPosition"/>
+    <properties name="fri_port" type="int" value="49938"/>
+  </composition>
+  <composition type="FRIDiagnostics">
+    <handlers name="Diagnostics" generates="//@composition.1/@outputPorts.0"/>
+    <inputPorts dataType="tFriIntfState" name="FRIState"/>
+    <inputPorts dataType="tFriRobotState" name="RobotState"/>
+    <outputPorts dataType="diagnostic_msgs::DiagnosticArray" name="Diagnostics"/>
+    <properties name="prefix" type="std::string" value="&quot;lwr&quot;"/>
+  </composition>
+</dwds:Component>

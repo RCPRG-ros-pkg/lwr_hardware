@@ -1,31 +1,30 @@
-// Copyright  (C)  2009  Ruben Smits <ruben dot_cart smits at mech dot kuleuven dot be>,
-// Copyright  (C)  2009  Wilm Decre <wilm dot decre at mech dot kuleuven dot be>
 
-// Author: Ruben Smits, Wilm Decre
-// Maintainer: Ruben Smits, Wilm Decre
-
-// This library is free software; you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 2.1 of the License, or (at your option) any later version.
-
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-// Lesser General Public License for more details.
-
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; if not, write to the Free Software
-// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+#include <rtt/TaskContext.hpp>
+#include <rtt/Port.hpp>
 #include <rtt/Component.hpp>
 
-#include <rtt/Logger.hpp>
+// Start of user code includes
 #include <kdl/frames.hpp>
+#include <kdl/jntarray.hpp>
+#include <kdl/jacobian.hpp>
 
-#include "FRIComponent.hpp"
+#include <kuka_lwr_fri/friComm.h>
+
+#include <lwr_fri/CartesianImpedance.h>
+#include <lwr_fri/FriJointImpedance.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Wrench.h>
+#include <geometry_msgs/Twist.h>
+#include <std_msgs/Int32.h>
+
 #include <tf_conversions/tf_kdl.h>
 
+#include <Eigen/Dense>
+
+#include <vector>
+
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <errno.h>
@@ -45,471 +44,411 @@
 #include <rtdm/rtdm.h>
 #endif
 
-namespace lwr_fri {
+typedef Eigen::Matrix<double, 7, 7> Matrix77d;
+// End of user code
 
-using namespace RTT;
+class FRIComponent : public RTT::TaskContext {
+public:
+  FRIComponent(const std::string & name) : TaskContext(name) {
 
-FRIComponent::FRIComponent(const std::string& name) :
-	TaskContext(name, PreOperational) {
+    prop_fri_port = 49938;
+	
+    this->addProperty("fri_port", prop_fri_port);
 
-	this->addPort("KRL_CMD", port_krl_cmd);
+    this->ports()->addPort("CartesianImpedanceCommand", port_CartesianImpedanceCommand).doc("");
+    this->ports()->addPort("CartesianWrenchCommand", port_CartesianWrenchCommand).doc("");
+    this->ports()->addPort("CartesianPositionCommand", port_CartesianPositionCommand).doc("");
+    this->ports()->addPort("JointImpedanceCommand", port_JointImpedanceCommand).doc("");
+    this->ports()->addPort("JointPositionCommand", port_JointPositionCommand).doc("");
+    this->ports()->addPort("JointTorqueCommand", port_JointTorqueCommand).doc("");
+    this->ports()->addPort("KRL_CMD", port_KRL_CMD).doc("");
 
-	this->addPort("events", port_events).doc(
-			"Port through which discrete events are emitted");
-	this->addPort("RobotState", port_robot_state).doc(
-			"Port containing the status of the robot");
-	this->addPort("FRIState", port_fri_state).doc(
-			"Port containing the status of the FRI communication");
+    this->ports()->addPort("CartesianWrench", port_CartesianWrench).doc("");
+    this->ports()->addPort("RobotState", port_RobotState).doc("");
+    this->ports()->addPort("FRIState", port_FRIState).doc("");
+    this->ports()->addPort("JointVelocity", port_JointVelocity).doc("");
+    this->ports()->addPort("CartesianVelocity", port_CartesianVelocity).doc("");
+    this->ports()->addPort("CartesianPosition", port_CartesianPosition).doc("");
+    this->ports()->addPort("MassMatrix", port_MassMatrix).doc("");
+    this->ports()->addPort("Jacobian", port_Jacobian).doc("");
+    this->ports()->addPort("JointTorque", port_JointTorque).doc("");
+    this->ports()->addPort("JointPosition", port_JointPosition).doc("");
+  }
 
-	this->addPort("JointState", port_joint_state);
-	this->addPort("FriJointState", port_fri_joint_state);
+  ~FRIComponent(){
+  }
 
-	this->addPort("JointPosition", port_joint_pos_msr);
-	this->addPort("JointTorque", port_joint_trq_msr);
+  bool configureHook() {
+    // Start of user code configureHook
+    jnt_pos_.resize(LBR_MNJ);
+    jnt_pos_old_.resize(LBR_MNJ);
+    jnt_vel_.resize(LBR_MNJ);
+    jnt_trq_.resize(LBR_MNJ);
+    jnt_pos_cmd_.resize(LBR_MNJ);
+    jnt_trq_cmd_.resize(LBR_MNJ);
+    jac_.resize(LBR_MNJ);
 
-  this->addPort("DesiredJointPosition", port_joint_pos_des);
+    port_JointPosition.setDataSample(jnt_pos_);
+    port_JointTorque.setDataSample(jnt_trq_);
+    port_Jacobian.setDataSample(jac_);
 
-	this->addPort("CartesianPosition", port_cart_pos_msr);
-	this->addPort("CartesianWrench", port_cart_wrench_msr);
+    if (fri_create_socket() != 0)
+      return false;
+    // End of user code
+    return true;
+  }
 
-	this->addPort("FriJointImpedance", port_fri_joint_impedance);
-	this->addPort("JointPositionCommand", port_joint_pos_command);
-	this->addPort("JointVelocityCommand", port_joint_vel_command);
-	this->addPort("JointEffortCommand", port_joint_effort_command);
+  bool startHook() {
+    // Start of user code startHook
+    // End of user code
+    return true;
+  }
 
-	this->addPort("CartesianPositionCommand", port_cart_pos_command);
-	this->addPort("CartesianVelocityCommand", port_cart_vel_command);
-	this->addPort("CartesianWrenchCommand", port_cart_wrench_command);
-	this->addPort("CartesianImpedanceCommand", port_cart_impedance_command);
+  void stopHook() {
+    // Start of user code stopHook
+    // End of user code
+  }
 
-  this->addPort("CommandPeriod", port_command_period);
-	this->addPort("Jacobian", port_jacobian);
-	this->addPort("MassMatrix", massMatrixPort);
-
-	this->addProperty("udp_port", prop_local_port);
-}
-
-FRIComponent::~FRIComponent() {
-}
-
-bool FRIComponent::configureHook() {
-	//Check the sizes of all data:
-	if (!FRI_CHECK_SIZES_OK) {
-		log(Error) << "Padding on this platform is not OK :(" << endlog();
-		return false;
-	}
-	//Check the byte order and float representation:
-	{
-		FRI_PREPARE_CHECK_BYTE_ORDER;
-		if (!FRI_CHECK_BYTE_ORDER_OK) {
-			log(Error)
-					<< "Byte order and float representations are not OK on this platform :("
-					<< endlog();				std::cout << "Switching to monitor mode." << std::endl;
-
-			return false;
-		}
-	}
-
-	// presize the events port
-	//TODO: check whether we should use rt_string for the event_port
-	port_events.setDataSample("         10        20        30");
-	fri_state_last = 0;
-
-	//Resizing dynamic size objects
-	m_joint_pos.resize(LBR_MNJ);
-	m_joint_trq.resize(LBR_MNJ);
-
-  m_joint_pos_des.resize(LBR_MNJ);
-
-	m_joint_states.name.resize(LBR_MNJ);
-	m_joint_states.position.resize(LBR_MNJ);
-	m_joint_states.effort.resize(LBR_MNJ);
-
-	jac.resize(LBR_MNJ);
-
-	for (unsigned int i = 0; i < LBR_MNJ; i++) {
-		std::ostringstream ss;
-		ss << "joint_" << i;
-		m_joint_states.name[i] = ss.str();
-	}
-	port_joint_state.setDataSample(m_joint_states);
-
-	if (fri_create_socket() != 0)
-		return false;
-
-	provides()->addAttribute("counter", counter);
-	return true;
-}
-
-bool FRIComponent::startHook() {
-	counter = 0;
-	return true;
-}
-
-void FRIComponent::updateHook() {
-  
-	//Read:
-	if (fri_recv() == 0) {
-
-		//Check state and fire event if changed
-		if (m_msr_data.intf.state == FRI_STATE_MON || !isPowerOn() ) {
-			if (fri_state_last != m_msr_data.intf.state) {
-				//cout << "Switching to monitor mode." <<endl;
-				port_events.write("e_fri_mon_mode");
-			}
-		} else if (m_msr_data.intf.state == FRI_STATE_CMD && isPowerOn() ) {
-			if (fri_state_last != m_msr_data.intf.state) {
-				port_events.write("e_fri_cmd_mode");
-				//cout << "Switching to command mode." <<endl;
-			}
-		} else {
-			if (fri_state_last != m_msr_data.intf.state)
-				port_events.write("e_fri_unkown_mode");
-		}
-		fri_state_last = m_msr_data.intf.state;
-
-		//Put robot and fri state on the ports(no parsing)
-		port_robot_state.write(m_msr_data.robot);
-		port_fri_state.write(m_msr_data.intf);
-
-    //port_command_period.write(m_msr_data.intf.desiredCmdSampleTime);
-
-		//Put KRL data onto the ports(no parsing)
-		//port_from_krl.write(m_msr_data.krl);
-    KDL::Frame baseFrame(KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI/180.0,
-                                            m_msr_data.krl.realData[4] * M_PI/180.0,
-                                            m_msr_data.krl.realData[5] * M_PI/180.0),
-                         KDL::Vector(m_msr_data.krl.realData[0]/1000.0,
-                                     m_msr_data.krl.realData[1]/1000.0, 
-                                     m_msr_data.krl.realData[2]/1000.0));
-   //std::cout << baseFrame.p.x() << "  " << baseFrame.p.y() << "  " << baseFrame.p.z()<<std::endl;
-		// Fill in fri_joint_state and joint_state
-		for (unsigned int i = 0; i < LBR_MNJ; i++) {
-			m_fri_joint_state.msrJntPos[i] = m_msr_data.data.msrJntPos[i];
-			m_fri_joint_state.cmdJntPos[i] = m_msr_data.data.cmdJntPos[i];
-			m_fri_joint_state.cmdJntPosFriOffset[i]
-					= m_msr_data.data.cmdJntPosFriOffset[i];
-			m_fri_joint_state.msrJntTrq[i] = m_msr_data.data.msrJntTrq[i];
-			m_fri_joint_state.estExtJntTrq[i] = m_msr_data.data.estExtJntTrq[i];
-			m_joint_trq[i] = -m_msr_data.data.estExtJntTrq[i];
-		}
-		m_joint_states.position.assign(m_msr_data.data.msrJntPos,
-				m_msr_data.data.msrJntPos + LBR_MNJ);
-		m_joint_states.effort.assign(m_msr_data.data.estExtJntTrq,
-				m_msr_data.data.estExtJntTrq + LBR_MNJ);
-
-		m_joint_pos.assign(m_msr_data.data.msrJntPos,
-				m_msr_data.data.msrJntPos + LBR_MNJ);
-
-		port_fri_joint_state.write(m_fri_joint_state);
-		port_joint_state.write(m_joint_states);
-		port_joint_pos_msr.write(m_joint_pos);
-		port_joint_trq_msr.write(m_joint_trq);
-
-		geometry_msgs::Quaternion quat;
-		KDL::Frame cartPos;
-		cartPos.M=KDL::Rotation(m_msr_data.data.msrCartPos[0],
-		m_msr_data.data.msrCartPos[1], m_msr_data.data.msrCartPos[2],
-		m_msr_data.data.msrCartPos[4], m_msr_data.data.msrCartPos[5],
-		m_msr_data.data.msrCartPos[6], m_msr_data.data.msrCartPos[8],
-		m_msr_data.data.msrCartPos[9], m_msr_data.data.msrCartPos[10]);
-		cartPos.p.x(m_msr_data.data.msrCartPos[3]);
-		cartPos.p.y(m_msr_data.data.msrCartPos[7]);
-		cartPos.p.z(m_msr_data.data.msrCartPos[11]);
-		cartPos = baseFrame*cartPos;
-		tf::PoseKDLToMsg(cartPos,m_cartPos);
-		port_cart_pos_msr.write(m_cartPos);
-
-		m_cartWrench.force.x = m_msr_data.data.estExtTcpFT[0];
-		m_cartWrench.force.y = m_msr_data.data.estExtTcpFT[1];
-		m_cartWrench.force.z = m_msr_data.data.estExtTcpFT[2];
-		m_cartWrench.torque.x = m_msr_data.data.estExtTcpFT[5];
-		m_cartWrench.torque.y = m_msr_data.data.estExtTcpFT[4];
-		m_cartWrench.torque.z = m_msr_data.data.estExtTcpFT[3];
-	  port_cart_wrench_msr.write(m_cartWrench);
-
-    for ( int i = 0; i < FRI_CART_VEC; i++)
-      for ( int j = 0; j < LBR_MNJ; j++)
-        jac(i,j) = m_msr_data.data.jacobian[i*LBR_MNJ+j];
-    //Kuka uses Tx, Ty, Tz, Rz, Ry, Rx convention, so we need to swap Rz and Rx
-    jac.data.row(3).swap(jac.data.row(5));
-    port_jacobian.write(jac);
-
-    for(unsigned int i=0;i<LBR_MNJ;i++) {
-      for(unsigned int j=0;j<LBR_MNJ;j++) {
-        	  m_massTmp(i,j)=m_msr_data.data.massMatrix[LBR_MNJ*i+j];
-      }
+  void updateHook() {
+	if( true) {
+      doComm();
     }
-    massMatrixPort.write(m_massTmp);
+  }
 
-		//Fill in datagram to send:
-		m_cmd_data.head.datagramId = FRI_DATAGRAM_ID_CMD;
-		m_cmd_data.head.packetSize = sizeof(tFriCmdData);
-		m_cmd_data.head.sendSeqCount = ++counter;
-		m_cmd_data.head.reflSeqCount = m_msr_data.head.sendSeqCount;
+private:
+
+  void doComm() {
+    // Start of user code Comm
+
+    geometry_msgs::Pose cart_pos, cart_pos_cmd;
+    geometry_msgs::Wrench cart_wrench, cart_wrench_cmd;
+    geometry_msgs::Twist cart_twist;
+    Matrix77d mass;
+    lwr_fri::FriJointImpedance jnt_imp_cmd;
+    lwr_fri::CartesianImpedance cart_imp_cmd;
+
+    //Read:
+    if (fri_recv() == 0) {
+
+      KDL::Frame baseFrame(
+          KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI / 180.0,
+              m_msr_data.krl.realData[4] * M_PI / 180.0,
+              m_msr_data.krl.realData[5] * M_PI / 180.0),
+          KDL::Vector(m_msr_data.krl.realData[0] / 1000.0,
+              m_msr_data.krl.realData[1] / 1000.0,
+              m_msr_data.krl.realData[2] / 1000.0));
+
+      // Fill in fri_joint_state and joint_state
+      for (unsigned int i = 0; i < LBR_MNJ; i++) {
+        jnt_trq_[i] = -m_msr_data.data.estExtJntTrq[i];
+        jnt_pos_[i] = m_msr_data.data.msrJntPos[i];
+        jnt_vel_[i] = (jnt_pos_[i] - jnt_pos_old_[i]) / m_msr_data.intf.desiredMsrSampleTime;
+        jnt_pos_old_[i] = jnt_pos_[i];
+      }
+
+      geometry_msgs::Quaternion quat;
+      KDL::Frame cartPos;
+      cartPos.M = KDL::Rotation(m_msr_data.data.msrCartPos[0],
+          m_msr_data.data.msrCartPos[1], m_msr_data.data.msrCartPos[2],
+          m_msr_data.data.msrCartPos[4], m_msr_data.data.msrCartPos[5],
+          m_msr_data.data.msrCartPos[6], m_msr_data.data.msrCartPos[8],
+          m_msr_data.data.msrCartPos[9], m_msr_data.data.msrCartPos[10]);
+      cartPos.p.x(m_msr_data.data.msrCartPos[3]);
+      cartPos.p.y(m_msr_data.data.msrCartPos[7]);
+      cartPos.p.z(m_msr_data.data.msrCartPos[11]);
+      cartPos = baseFrame * cartPos;
+      tf::PoseKDLToMsg(cartPos, cart_pos);
+
+      KDL::Twist v = KDL::diff(T_old, cartPos, m_msr_data.intf.desiredMsrSampleTime);
+      v = cartPos.M.Inverse() * v;
+      T_old = cartPos;
+      tf::TwistKDLToMsg(v, cart_twist);
+
+      cart_wrench.force.x = m_msr_data.data.estExtTcpFT[0];
+      cart_wrench.force.y = m_msr_data.data.estExtTcpFT[1];
+      cart_wrench.force.z = m_msr_data.data.estExtTcpFT[2];
+      cart_wrench.torque.x = m_msr_data.data.estExtTcpFT[5];
+      cart_wrench.torque.y = m_msr_data.data.estExtTcpFT[4];
+      cart_wrench.torque.z = m_msr_data.data.estExtTcpFT[3];
+
+      for (int i = 0; i < FRI_CART_VEC; i++)
+        for (int j = 0; j < LBR_MNJ; j++)
+          jac_(i, j) = m_msr_data.data.jacobian[i * LBR_MNJ + j];
+      //Kuka uses Tx, Ty, Tz, Rz, Ry, Rx convention, so we need to swap Rz and Rx
+      jac_.data.row(3).swap(jac_.data.row(5));
+
+      for (unsigned int i = 0; i < LBR_MNJ; i++) {
+        for (unsigned int j = 0; j < LBR_MNJ; j++) {
+          mass(i, j) = m_msr_data.data.massMatrix[LBR_MNJ * i + j];
+        }
+      }
+
+      //Fill in datagram to send:
+      m_cmd_data.head.datagramId = FRI_DATAGRAM_ID_CMD;
+      m_cmd_data.head.packetSize = sizeof(tFriCmdData);
+      m_cmd_data.head.sendSeqCount = ++counter;
+      m_cmd_data.head.reflSeqCount = m_msr_data.head.sendSeqCount;
+
+      //Process KRL CMD
+
+      if (!(m_msr_data.krl.boolData & (1 << 0))) {
+        std_msgs::Int32 x;
+        if (port_KRL_CMD.read(x) == RTT::NewData) {
+          m_cmd_data.krl.intData[0] = x.data;
+          m_cmd_data.krl.boolData |= (1 << 0);
+        }
+      } else {
+        m_cmd_data.krl.boolData &= ~(1 << 0);
+      }
+
+      if (!isPowerOn()) {
+        // necessary to write cmd if not powered on. See kuka FRI user manual p6 and friremote.cpp:
+        for (int i = 0; i < LBR_MNJ; i++) {
+          m_cmd_data.cmd.jntPos[i] = m_msr_data.data.cmdJntPos[i]
+              + m_msr_data.data.cmdJntPosFriOffset[i];
+        }
+      }
+      if (m_msr_data.intf.state == FRI_STATE_MON || !isPowerOn()) {
+        // joint position control capable modes:
+        if (m_msr_data.robot.control == FRI_CTRL_POSITION
+            || m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
+          m_cmd_data.cmd.cmdFlags = FRI_CMD_JNTPOS;
+          for (unsigned int i = 0; i < LBR_MNJ; i++) {
+            // see note above with !isPowerOn()
+            // the user manual speaks of 'mimic msr.data.msrCmdJntPos' which is ambiguous.
+            // on the other hand, the friremote.cpp will send this whenever (!isPowerOn() || state != FRI_STATE_CMD)
+            // so we mimic the kuka reference code here...
+            m_cmd_data.cmd.jntPos[i] = m_msr_data.data.cmdJntPos[i]
+                + m_msr_data.data.cmdJntPosFriOffset[i];
+          }
+        }
+        // Additional flags are set in joint impedance mode:
+        if (m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
+          m_cmd_data.cmd.cmdFlags |= FRI_CMD_JNTTRQ;
+          m_cmd_data.cmd.cmdFlags |= FRI_CMD_JNTSTIFF | FRI_CMD_JNTDAMP;
+          for (unsigned int i = 0; i < LBR_MNJ; i++) {
+            m_cmd_data.cmd.addJntTrq[i] = 0.0;
+            m_cmd_data.cmd.jntStiffness[i] = 250;
+            m_cmd_data.cmd.jntDamping[i] = 0.7;
+          }
+        }
+        if (m_msr_data.robot.control == FRI_CTRL_CART_IMP) {
+          m_cmd_data.cmd.cmdFlags = FRI_CMD_CARTPOS | FRI_CMD_TCPFT;
+          m_cmd_data.cmd.cmdFlags |= FRI_CMD_CARTSTIFF | FRI_CMD_CARTDAMP;
+          for (unsigned int i = 0; i < FRI_CART_FRM_DIM; i++)
+            m_cmd_data.cmd.cartPos[i] = m_msr_data.data.msrCartPos[i];
+          for (unsigned int i = 0; i < FRI_CART_VEC; i++)
+            m_cmd_data.cmd.addTcpFT[i] = 0.0;
+          for (unsigned int i = 0; i < FRI_CART_VEC / 2; i++) {
+            //Linear part;
+            m_cmd_data.cmd.cartStiffness[i] = 1000;
+            m_cmd_data.cmd.cartDamping[i] = 0.7;
+            //rotational part;
+            m_cmd_data.cmd.cartStiffness[i + FRI_CART_VEC / 2] = 100;
+            m_cmd_data.cmd.cartDamping[i + FRI_CART_VEC / 2] = 0.7;
+          }
+        }
+      }
+      //Only send if state is in FRI_STATE_CMD and drives are powerd
+      if ((m_msr_data.intf.state == FRI_STATE_CMD) && isPowerOn()) {
+        //Valid ports in joint position and joint impedance mode
+        if (m_msr_data.robot.control == FRI_CTRL_POSITION
+            || m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
+          //Read desired positions
+          if (port_JointPositionCommand.read(jnt_pos_cmd_) == RTT::NewData) {
+            if (jnt_pos_cmd_.size() == LBR_MNJ) {
+              for (unsigned int i = 0; i < LBR_MNJ; i++)
+                m_cmd_data.cmd.jntPos[i] = jnt_pos_cmd_[i];
+            } else
+              RTT::log(RTT::Warning) << "Size of " << port_JointPositionCommand.getName()
+                  << " not equal to " << LBR_MNJ << RTT::endlog();
+
+          }
+        }
+        //Valid ports only in joint impedance mode
+        if (m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
+          //Read desired additional joint torques
+          if (port_JointTorqueCommand.read(jnt_trq_cmd_)
+              == RTT::NewData) {
+            //Check size
+            if (jnt_trq_cmd_.size() == LBR_MNJ) {
+              for (unsigned int i = 0; i < LBR_MNJ; i++)
+                m_cmd_data.cmd.addJntTrq[i] = jnt_trq_cmd_[i];
+            } else
+              RTT::log(RTT::Warning) << "Size of " << port_JointTorqueCommand.getName()
+                  << " not equal to " << LBR_MNJ << RTT::endlog();
+
+          }
+          //Read desired joint impedance
+          if (port_JointImpedanceCommand.read(jnt_imp_cmd) == RTT::NewData) {
+            for (unsigned int i = 0; i < LBR_MNJ; i++) {
+              m_cmd_data.cmd.jntStiffness[i] =
+                  jnt_imp_cmd.stiffness[i];
+              m_cmd_data.cmd.jntDamping[i] = jnt_imp_cmd.damping[i];
+            }
+          }
+        } else if (m_msr_data.robot.control == FRI_CTRL_CART_IMP) {
+          if (port_CartesianPositionCommand.read(cart_pos_cmd) == RTT::NewData) {
+            KDL::Rotation rot = KDL::Rotation::Quaternion(
+                cart_pos_cmd.orientation.x, cart_pos_cmd.orientation.y,
+                cart_pos_cmd.orientation.z, cart_pos_cmd.orientation.w);
+            m_cmd_data.cmd.cartPos[0] = rot.data[0];
+            m_cmd_data.cmd.cartPos[1] = rot.data[1];
+            m_cmd_data.cmd.cartPos[2] = rot.data[2];
+            m_cmd_data.cmd.cartPos[4] = rot.data[3];
+            m_cmd_data.cmd.cartPos[5] = rot.data[4];
+            m_cmd_data.cmd.cartPos[6] = rot.data[5];
+            m_cmd_data.cmd.cartPos[8] = rot.data[6];
+            m_cmd_data.cmd.cartPos[9] = rot.data[7];
+            m_cmd_data.cmd.cartPos[10] = rot.data[8];
+
+            m_cmd_data.cmd.cartPos[3] = cart_pos_cmd.position.x;
+            m_cmd_data.cmd.cartPos[7] = cart_pos_cmd.position.y;
+            m_cmd_data.cmd.cartPos[11] = cart_pos_cmd.position.z;
+          }
+
+          if (port_CartesianWrenchCommand.read(cart_wrench_cmd) == RTT::NewData) {
+            m_cmd_data.cmd.addTcpFT[0] = cart_wrench_cmd.force.x;
+            m_cmd_data.cmd.addTcpFT[1] = cart_wrench_cmd.force.y;
+            m_cmd_data.cmd.addTcpFT[2] = cart_wrench_cmd.force.z;
+            m_cmd_data.cmd.addTcpFT[3] = cart_wrench_cmd.torque.z;
+            m_cmd_data.cmd.addTcpFT[4] = cart_wrench_cmd.torque.y;
+            m_cmd_data.cmd.addTcpFT[5] = cart_wrench_cmd.torque.x;
+          }
+
+          if (port_CartesianImpedanceCommand.read(cart_imp_cmd) == RTT::NewData) {
+            m_cmd_data.cmd.cartStiffness[0] = cart_imp_cmd.stiffness.linear.x;
+            m_cmd_data.cmd.cartStiffness[1] = cart_imp_cmd.stiffness.linear.y;
+            m_cmd_data.cmd.cartStiffness[2] = cart_imp_cmd.stiffness.linear.z;
+            m_cmd_data.cmd.cartStiffness[5] = cart_imp_cmd.stiffness.angular.x;
+            m_cmd_data.cmd.cartStiffness[4] = cart_imp_cmd.stiffness.angular.y;
+            m_cmd_data.cmd.cartStiffness[3] = cart_imp_cmd.stiffness.angular.z;
+            m_cmd_data.cmd.cartDamping[0] = cart_imp_cmd.damping.linear.x;
+            m_cmd_data.cmd.cartDamping[1] = cart_imp_cmd.damping.linear.y;
+            m_cmd_data.cmd.cartDamping[2] = cart_imp_cmd.damping.linear.z;
+            m_cmd_data.cmd.cartDamping[5] = cart_imp_cmd.damping.angular.x;
+            m_cmd_data.cmd.cartDamping[4] = cart_imp_cmd.damping.angular.y;
+            m_cmd_data.cmd.cartDamping[3] = cart_imp_cmd.damping.angular.z;
+          }
+        } else if (m_msr_data.robot.control == FRI_CTRL_OTHER) {
+          this->error();
+        }
+      }						//End command mode
+
+      //Put robot and fri state on the ports(no parsing)
+      port_RobotState.write(m_msr_data.robot);
+      port_FRIState.write(m_msr_data.intf);
+
+      port_JointPosition.write(jnt_pos_);
+      port_JointVelocity.write(jnt_vel_);
+      port_JointTorque.write(jnt_trq_);
+
+      port_CartesianPosition.write(cart_pos);
+      port_CartesianVelocity.write(cart_twist);
+      port_CartesianWrench.write(cart_wrench);
+
+      port_Jacobian.write(jac_);
+      port_MassMatrix.write(mass);
+
+      fri_send();
+    }
+
+    this->trigger();
+    // End of user code
+  }
 
 
-		//Process KRL CMD
+  RTT::InputPort<lwr_fri::CartesianImpedance > port_CartesianImpedanceCommand;
+  RTT::InputPort<geometry_msgs::Wrench > port_CartesianWrenchCommand;
+  RTT::InputPort<geometry_msgs::Pose > port_CartesianPositionCommand;
+  RTT::InputPort<lwr_fri::FriJointImpedance > port_JointImpedanceCommand;
+  RTT::InputPort<std::vector<double> > port_JointPositionCommand;
+  RTT::InputPort<std::vector<double> > port_JointTorqueCommand;
+  RTT::InputPort<std_msgs::Int32 > port_KRL_CMD;
 
-		if(!(m_msr_data.krl.boolData & (1<<0))) {
-			std_msgs::Int32 x;
-			if(port_krl_cmd.read(x) == NewData) {
-				m_cmd_data.krl.intData[0] = x.data;
-				m_cmd_data.krl.boolData |= (1<<0);
-			}
-		} else {
-			m_cmd_data.krl.boolData &= ~(1<<0);
-		}
+  RTT::OutputPort<geometry_msgs::Wrench > port_CartesianWrench;
+  RTT::OutputPort<tFriRobotState > port_RobotState;
+  RTT::OutputPort<tFriIntfState > port_FRIState;
+  RTT::OutputPort<std::vector<double> > port_JointVelocity;
+  RTT::OutputPort<geometry_msgs::Twist > port_CartesianVelocity;
+  RTT::OutputPort<geometry_msgs::Pose > port_CartesianPosition;
+  RTT::OutputPort<Matrix77d > port_MassMatrix;
+  RTT::OutputPort<KDL::Jacobian > port_Jacobian;
+  RTT::OutputPort<std::vector<double> > port_JointTorque;
+  RTT::OutputPort<std::vector<double> > port_JointPosition;
+
+  int prop_fri_port;
 
 
-		if (!isPowerOn()) {
-			// necessary to write cmd if not powered on. See kuka FRI user manual p6 and friremote.cpp:
-			for (int i = 0; i < LBR_MNJ; i++)
-			{
-				m_cmd_data.cmd.jntPos[i]=m_msr_data.data.cmdJntPos[i]+m_msr_data.data.cmdJntPosFriOffset[i];
-			}
-		}
-		if (m_msr_data.intf.state == FRI_STATE_MON || !isPowerOn()) {
-			// joint position control capable modes:
-			if (m_msr_data.robot.control == FRI_CTRL_POSITION
-					|| m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
-				m_cmd_data.cmd.cmdFlags = FRI_CMD_JNTPOS;
-				for (unsigned int i = 0; i < LBR_MNJ; i++) {
-					// see note above with !isPowerOn()
-					// the user manual speaks of 'mimic msr.data.msrCmdJntPos' which is ambiguous.
-					// on the other hand, the friremote.cpp will send this whenever (!isPowerOn() || state != FRI_STATE_CMD)
-					// so we mimic the kuka reference code here...
-					m_cmd_data.cmd.jntPos[i] = m_msr_data.data.cmdJntPos[i]+m_msr_data.data.cmdJntPosFriOffset[i];
-				}
-			}
-			// Additional flags are set in joint impedance mode:
-			if ( m_msr_data.robot.control == FRI_CTRL_JNT_IMP ) {
-				m_cmd_data.cmd.cmdFlags |= FRI_CMD_JNTTRQ;
-				m_cmd_data.cmd.cmdFlags |= FRI_CMD_JNTSTIFF | FRI_CMD_JNTDAMP;
-				for (unsigned int i = 0; i < LBR_MNJ; i++) {
-					m_cmd_data.cmd.addJntTrq[i] = 0.0;
-					m_cmd_data.cmd.jntStiffness[i] = 250;
-					m_cmd_data.cmd.jntDamping[i]   = 0.7;
-				}
-			}
-			if (m_msr_data.robot.control == FRI_CTRL_CART_IMP) {
-				m_cmd_data.cmd.cmdFlags = FRI_CMD_CARTPOS | FRI_CMD_TCPFT;
-				m_cmd_data.cmd.cmdFlags |= FRI_CMD_CARTSTIFF | FRI_CMD_CARTDAMP;
-				for (unsigned int i = 0; i < FRI_CART_FRM_DIM; i++)
-					m_cmd_data.cmd.cartPos[i] = m_msr_data.data.msrCartPos[i];
-				for(unsigned int i = 0 ; i < FRI_CART_VEC ; i++)
-					m_cmd_data.cmd.addTcpFT[i]=0.0;
-				for(unsigned int i=0; i < FRI_CART_VEC/2 ; i++)
-				{
-					//Linear part;
-					m_cmd_data.cmd.cartStiffness[i]=1000;
-					m_cmd_data.cmd.cartDamping[i]=0.7;
-					//rotational part;
-					m_cmd_data.cmd.cartStiffness[i+FRI_CART_VEC/2]=100;
-					m_cmd_data.cmd.cartDamping[i+FRI_CART_VEC/2]=0.7;
-				}
-			}
-		}
-		//Only send if state is in FRI_STATE_CMD and drives are powerd
-		if ( (m_msr_data.intf.state == FRI_STATE_CMD) && isPowerOn() ) {
-			//Valid ports in joint position and joint impedance mode
-			if (m_msr_data.robot.control == FRI_CTRL_POSITION
-					|| m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
-				//Read desired positions
-				if (port_joint_pos_command.read(m_joint_pos_command) == NewData) {
-					if (m_joint_pos_command.size() == LBR_MNJ) {
-						for (unsigned int i = 0; i < LBR_MNJ; i++)
-							m_cmd_data.cmd.jntPos[i]
-									= m_joint_pos_command[i];
-					} else
-						log(Warning) << "Size of "
-								<< port_joint_pos_command.getName()
-								<< " not equal to " << LBR_MNJ << endlog();
+  // Start of user code userData
+  std::vector<double> jnt_pos_;
+  std::vector<double> jnt_pos_old_;
+  std::vector<double> jnt_trq_;
+  std::vector<double> jnt_vel_;
 
-				}
-				//Read desired velocities
-				if (port_joint_vel_command.read(m_joint_vel_command) == NewData) {
-					if (m_joint_vel_command.size() == LBR_MNJ) {
-						for (unsigned int i = 0; i < LBR_MNJ; i++)
-							m_cmd_data.cmd.jntPos[i]
-									+= m_joint_vel_command[i]
-											* m_msr_data.intf.desiredCmdSampleTime;
-					} else
-						log(Warning) << "Size of "
-								<< port_joint_vel_command.getName()
-								<< " not equal to " << LBR_MNJ << endlog();
-				}
-			}
-			//Valid ports only in joint impedance mode
-			if (m_msr_data.robot.control == FRI_CTRL_JNT_IMP) {
-				//Read desired additional joint torques
-				if (port_joint_effort_command.read(m_joint_effort_command)
-						== NewData) {
-					//Check size
-					if (m_joint_effort_command.size() == LBR_MNJ) {
-						for (unsigned int i = 0; i < LBR_MNJ; i++)
-							m_cmd_data.cmd.addJntTrq[i]
-									= m_joint_effort_command[i];
-					} else
-						log(Warning) << "Size of "
-								<< port_joint_effort_command.getName()
-								<< " not equal to " << LBR_MNJ << endlog();
+  std::vector<double> jnt_pos_cmd_;
+  std::vector<double> jnt_trq_cmd_;
 
-				}
-				//Read desired joint impedance
-				if (port_fri_joint_impedance.read(m_fri_joint_impedance)
-						== NewData) {
-					for (unsigned int i = 0; i < LBR_MNJ; i++) {
-						m_cmd_data.cmd.jntStiffness[i]
-								= m_fri_joint_impedance.stiffness[i];
-						m_cmd_data.cmd.jntDamping[i]
-								= m_fri_joint_impedance.damping[i];
-					}
-				}
-			} else if (m_msr_data.robot.control == FRI_CTRL_CART_IMP) {
-				if (NewData == port_cart_pos_command.read(m_cartPos)) {
-					KDL::Rotation rot =
-							KDL::Rotation::Quaternion(
-									m_cartPos.orientation.x, m_cartPos.orientation.y,
-									m_cartPos.orientation.z, m_cartPos.orientation.w);
-					m_cmd_data.cmd.cartPos[0] = rot.data[0];
-					m_cmd_data.cmd.cartPos[1] = rot.data[1];
-					m_cmd_data.cmd.cartPos[2] = rot.data[2];
-					m_cmd_data.cmd.cartPos[4] = rot.data[3];
-					m_cmd_data.cmd.cartPos[5] = rot.data[4];
-					m_cmd_data.cmd.cartPos[6] = rot.data[5];
-					m_cmd_data.cmd.cartPos[8] = rot.data[6];
-					m_cmd_data.cmd.cartPos[9] = rot.data[7];
-					m_cmd_data.cmd.cartPos[10] = rot.data[8];
+  KDL::Jacobian jac_;
 
-					m_cmd_data.cmd.cartPos[3] = m_cartPos.position.x;
-					m_cmd_data.cmd.cartPos[7] = m_cartPos.position.y;
-					m_cmd_data.cmd.cartPos[11] = m_cartPos.position.z;
-				}
+  KDL::Frame T_old;
 
-				if (NewData == port_cart_wrench_command.read(m_cartWrench)) {
-					m_cmd_data.cmd.addTcpFT[0] = m_cartWrench.force.x;
-					m_cmd_data.cmd.addTcpFT[1] = m_cartWrench.force.y;
-					m_cmd_data.cmd.addTcpFT[2] = m_cartWrench.force.z;
-					m_cmd_data.cmd.addTcpFT[3] = m_cartWrench.torque.z;
-					m_cmd_data.cmd.addTcpFT[4] = m_cartWrench.torque.y;
-					m_cmd_data.cmd.addTcpFT[5] = m_cartWrench.torque.x;
-				}
+  int m_socket, m_remote_port, m_control_mode;
+  std::string joint_names_prefix;
+  uint16_t counter, fri_state_last;
+  struct sockaddr_in m_remote_addr;
+  socklen_t m_sock_addr_len;
 
-				if (NewData == port_cart_vel_command.read(m_cartTwist)) {
-					KDL::Twist t;
-					tf::TwistMsgToKDL (m_cartTwist, t);
-					KDL::Frame T_old;
-					T_old.M = KDL::Rotation(m_cmd_data.cmd.cartPos[0],
-							m_cmd_data.cmd.cartPos[1],
-							m_cmd_data.cmd.cartPos[2],
-							m_cmd_data.cmd.cartPos[4],
-							m_cmd_data.cmd.cartPos[5],
-							m_cmd_data.cmd.cartPos[6],
-							m_cmd_data.cmd.cartPos[8],
-							m_cmd_data.cmd.cartPos[9],
-							m_cmd_data.cmd.cartPos[10]);
-					T_old.p.x(m_cmd_data.cmd.cartPos[3]);
-					T_old.p.y(m_cmd_data.cmd.cartPos[7]);
-					T_old.p.z(m_cmd_data.cmd.cartPos[11]);
+  tFriMsrData m_msr_data;
+  tFriCmdData m_cmd_data;
 
-					KDL::Frame T_new = addDelta (T_old, t, m_msr_data.intf.desiredCmdSampleTime);
+  int fri_recv() {
+    int n = rt_dev_recvfrom(m_socket, (void*) &m_msr_data, sizeof(m_msr_data),
+        0, (sockaddr*) &m_remote_addr, &m_sock_addr_len);
+    if (sizeof(tFriMsrData) != n) {
+      RTT::log(RTT::Error) << "bad packet length: " << n << ", expected: "
+          << sizeof(tFriMsrData) << RTT::endlog();
+      return -1;
+    }
+    return 0;
+  }
 
-					m_cmd_data.cmd.cartPos[0] = T_new.M.data[0];
-					m_cmd_data.cmd.cartPos[1] = T_new.M.data[1];
-					m_cmd_data.cmd.cartPos[2] = T_new.M.data[2];
-					m_cmd_data.cmd.cartPos[4] = T_new.M.data[3];
-					m_cmd_data.cmd.cartPos[5] = T_new.M.data[4];
-					m_cmd_data.cmd.cartPos[6] = T_new.M.data[5];
-					m_cmd_data.cmd.cartPos[8] = T_new.M.data[6];
-					m_cmd_data.cmd.cartPos[9] = T_new.M.data[7];
-					m_cmd_data.cmd.cartPos[10] = T_new.M.data[8];
-					m_cmd_data.cmd.cartPos[3] = T_new.p.x();
-					m_cmd_data.cmd.cartPos[7] = T_new.p.y();
-					m_cmd_data.cmd.cartPos[11] = T_new.p.z();
-				}
-				if (NewData == port_cart_impedance_command.read(m_cartImp)){
-					m_cmd_data.cmd.cartStiffness[0]=m_cartImp.stiffness.linear.x;
-					m_cmd_data.cmd.cartStiffness[1]=m_cartImp.stiffness.linear.y;
-					m_cmd_data.cmd.cartStiffness[2]=m_cartImp.stiffness.linear.z;
-					m_cmd_data.cmd.cartStiffness[5]=m_cartImp.stiffness.angular.x;
-					m_cmd_data.cmd.cartStiffness[4]=m_cartImp.stiffness.angular.y;
-					m_cmd_data.cmd.cartStiffness[3]=m_cartImp.stiffness.angular.z;
-					m_cmd_data.cmd.cartDamping[0]=m_cartImp.damping.linear.x;
-					m_cmd_data.cmd.cartDamping[1]=m_cartImp.damping.linear.y;
-					m_cmd_data.cmd.cartDamping[2]=m_cartImp.damping.linear.z;
-					m_cmd_data.cmd.cartDamping[5]=m_cartImp.damping.angular.x;
-					m_cmd_data.cmd.cartDamping[4]=m_cartImp.damping.angular.y;
-					m_cmd_data.cmd.cartDamping[3]=m_cartImp.damping.angular.z;
-				}
-			} else if (m_msr_data.robot.control == FRI_CTRL_OTHER) {
-				this->error();
-			}
-		}//End command mode
+  int fri_send() {
+    if (0
+        > rt_dev_sendto(m_socket, (void*) &m_cmd_data, sizeof(m_cmd_data), 0,
+            (sockaddr*) &m_remote_addr, m_sock_addr_len)) {
+      RTT::log(RTT::Error) << "Sending datagram failed."
+          << ntohs(m_remote_addr.sin_port) << RTT::endlog();
+      return -1;
+    }
+    return 0;
+  }
 
-    for (unsigned int i = 0; i < LBR_MNJ; i++) {
-		  m_joint_pos_des[i] = m_cmd_data.cmd.jntPos[i];
-		  port_joint_pos_des.write(m_joint_pos_des);
-		}
-								
-		//m_cmd_data.krl = m_toKRL;
-	fri_send();
+  bool isPowerOn() { return m_msr_data.robot.power!=0; }
 
-  port_command_period.write(m_msr_data.intf.desiredCmdSampleTime);
-	}//End fri_recv succesfull
-	//if((counter % 1000) == 0)
-	//  log(Error) << "dupa " << counter << endlog();
-	this->trigger();
-}
+  int fri_create_socket() {
 
-void FRIComponent::stopHook() {
-}
+    if (m_socket != 0)
+      rt_dev_close(m_socket);
+    m_socket = rt_dev_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    rt_dev_setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, 0, 0);
 
-void FRIComponent::cleanupHook() {
-	close(m_socket);
-}
+    struct sockaddr_in local_addr;
+    bzero((char *) &local_addr, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = INADDR_ANY;
+    local_addr.sin_port = htons(prop_fri_port);
 
-int FRIComponent::fri_create_socket() {
-	if (m_socket != 0)
-		rt_dev_close(m_socket);
-	m_socket = rt_dev_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	rt_dev_setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, 0, 0);
+    if (rt_dev_bind(m_socket, (sockaddr*) &local_addr, sizeof(sockaddr_in)) < 0) {
+      RTT::log(RTT::Error) << "Binding of port failed with errno " << errno << RTT::endlog();
+      return -1;
+    }
 
-	struct sockaddr_in local_addr;
-	bzero((char *) &local_addr, sizeof(local_addr));
-	local_addr.sin_family = AF_INET;
-	local_addr.sin_addr.s_addr = INADDR_ANY;
-	local_addr.sin_port = htons(prop_local_port);
+    return 0;
+  }
+  // End of user code
 
-	if (rt_dev_bind(m_socket, (sockaddr*) &local_addr, sizeof(sockaddr_in)) < 0) {
-		log(Error) << "Binding of port failed with errno " << errno << endlog();
-		return -1;
-	}
+};
 
-	return 0;
-}
-
-int FRIComponent::fri_recv() {
-	int n = rt_dev_recvfrom(m_socket, (void*) &m_msr_data, sizeof(m_msr_data), 0,
-			(sockaddr*) &m_remote_addr, &m_sock_addr_len);
-	if (sizeof(tFriMsrData) != n) {
-		log(Error) << "bad packet length: " << n << ", expected: "
-				<< sizeof(tFriMsrData) << endlog();
-		return -1;
-	}
-	return 0;
-}
-
-int FRIComponent::fri_send() {
-	if (0 > rt_dev_sendto(m_socket, (void*) &m_cmd_data, sizeof(m_cmd_data), 0,
-			(sockaddr*) &m_remote_addr, m_sock_addr_len)) {
-		log(Error) << "Sending datagram failed." << ntohs(m_remote_addr.sin_port) << endlog();
-		return -1;
-	}
-	return 0;
-}
-
-}//namespace LWR
-
-ORO_CREATE_COMPONENT(lwr_fri::FRIComponent)
+ORO_CREATE_COMPONENT(FRIComponent)
 
