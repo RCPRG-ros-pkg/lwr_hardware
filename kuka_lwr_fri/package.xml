@@ -1,0 +1,14 @@
+<package>
+  <name>kuka_lwr_fri</name>
+  <version>2.6.0</version>
+  <description>
+    This package contains the components of the Kuka FRI typekit package
+  </description>
+  <license></license>
+  <author email="ruben.smits@mech.kuleuven.be">Ruben Smits</author>
+  <maintainer email="konradb3@gmail.com">Konrad Banachowicz</maintainer>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>
+

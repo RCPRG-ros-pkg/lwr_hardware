@@ -4,7 +4,7 @@
 #include <rtt/Component.hpp>
 
 // Start of user code includes
-#include <diagnostic_msgs/typekit/Types.h>
+#include <diagnostic_msgs/DiagnosticArray.h>
 #include <kuka_lwr_fri/friComm.h>
 #include <boost/lexical_cast.hpp>
 #include <string>

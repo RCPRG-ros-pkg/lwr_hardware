@@ -1,28 +1,13 @@
-#
-# The find_package macro for Orocos-RTT works best with
-# cmake >= 2.6.3
-#
-cmake_minimum_required(VERSION 2.6.3)
+cmake_minimum_required(VERSION 2.8.3)
+project(kuka_lwr_fri)
 
-#project(kuka_lwr_fri)
+catkin_package(
+  INCLUDE_DIRS include
+)
 
-#
-# Do setup in case of ros package, If ROS_ROOT is set, it is
-# recommended to use RTT/OCL through the ros packages.
-#
-set (ROS_ROOT $ENV{ROS_ROOT} )
-if (ROS_ROOT)
-  include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
-  rosbuild_init()
-  rosbuild_find_ros_package( rtt )
-  set( RTT_HINTS HINTS ${rtt_PACKAGE_PATH}/../install )
-endif()
+find_package(catkin REQUIRED)
 
-# Set the CMAKE_PREFIX_PATH in case you're not using Orocos through ROS
-# for helping these find commands find RTT.
-find_package(Orocos-RTT REQUIRED ${RTT_HINTS})
-
-if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/friComm.h)
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/include/kuka_lwr_fri/friComm.h)
   message(FATAL_ERROR "
    You NEED TO copy the friComm.h file that you got from KUKA in this directory:
    ${CMAKE_CURRENT_SOURCE_DIR}
@@ -31,13 +16,11 @@ if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/friComm.h)
    ")
 endif()
 
-# Defines the orocos_* cmake macros. See that file for additional
-# documentation.
-include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake)
+include_directories(
+  include
+  ${catkin_INCLUDE_DIRS})
 
-orocos_typegen_headers(--notransports=corba,typelib,mqueue friComm.h)
+#install(DIRECTORY include/${PROJECT_NAME}/
+#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#)
 
-#
-# Provided 'uninstall' target
-#
-orocos_generate_package()

@@ -1,0 +1,37 @@
+<package>
+  <name>lwr_fri</name>
+  <version>2.6.0</version>
+  <description>LWR FRI components</description>
+  <maintainer email="konradb3@gmail.com">Konrad Banachowicz</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/lwr_fri</url>
+
+  <author email="konradb3@gmail.com">Konrad Banachowicz</author>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>rtt</build_depend>
+  <build_depend>rtt_ros</build_depend>
+  <build_depend>kuka_lwr_fri</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>diagnostic_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>orocos_kdl</build_depend>
+  <build_depend>kdl_conversions</build_depend>
+  
+  <run_depend>rtt</run_depend>
+  <run_depend>rtt_ros</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>diagnostic_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>message_runtime</run_depend>
+  <run_depend>orocos_kdl</run_depend>
+  <run_depend>kdl_conversions</run_depend>
+  
+  <export>
+    <rtt_plugin_depend>rtt_ros</rtt_plugin_depend>
+  </export>
+</package>
