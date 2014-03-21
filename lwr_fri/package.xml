@@ -32,6 +32,11 @@
   <run_depend>kdl_conversions</run_depend>
   
   <export>
-    <rtt_plugin_depend>rtt_ros</rtt_plugin_depend>
+    <rtt_ros>
+      <plugin_depend>rtt_std_msgs</plugin_depend>
+      <plugin_depend>rtt_diagnostic_msgs</plugin_depend>
+      <plugin_depend>rtt_geometry_msgs</plugin_depend>
+      <plugin_depend>rtt_sensor_msgs</plugin_depend>
+    </rtt_ros>
   </export>
 </package>
