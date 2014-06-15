@@ -10,7 +10,7 @@ catkin_package(
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/include/kuka_lwr_fri/friComm.h)
   message(FATAL_ERROR "
    You NEED TO copy the friComm.h file that you got from KUKA in this directory:
-   ${CMAKE_CURRENT_SOURCE_DIR}
+   ${CMAKE_CURRENT_SOURCE_DIR}/include/kuka_lwr_fri
 
    Otherwise, this will never compile !
    ")
@@ -20,7 +20,7 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS})
 
-#install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#)
+install(DIRECTORY include/${PROJECT_NAME}/
+   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
 
