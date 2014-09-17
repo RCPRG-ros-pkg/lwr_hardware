@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(lwr_fri)
 
-find_package(catkin REQUIRED COMPONENTS rtt_ros kuka_lwr_fri diagnostic_msgs geometry_msgs std_msgs message_generation kdl_conversions)
+find_package(catkin REQUIRED COMPONENTS rtt_ros kuka_lwr_fri diagnostic_msgs geometry_msgs std_msgs message_generation kdl_conversions cmake_modules)
 
 add_message_files(DIRECTORY msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
