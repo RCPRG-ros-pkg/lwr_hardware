@@ -14,7 +14,12 @@ catkin_package(
 find_package(OROCOS-RTT REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(Xenomai REQUIRED)
-find_package(orocos_kdl REQUIRED)
+
+if(${OROCOS_TARGET} STREQUAL "xenomai" )
+  find_package(orocos_kdl REQUIRED)
+  add_definitions(-DHAVE_RTNET)
+  add_definitions(-DXENOMAI)
+endif()
 
 include_directories(include ${catkin_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS})
 link_directories(${orocos_kdl_LIBRARY_DIRS})
@@ -23,8 +28,13 @@ link_directories(${orocos_kdl_LIBRARY_DIRS})
 # documentation.
 include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake)
 add_definitions(-DRTT_COMPONENT)
+add_definitions(-DHAVE_RTNET)
 orocos_component(fricomponent src/FRIComponent.cpp)
-target_link_libraries(fricomponent ${orocos_kdl_LIBRARIES} ${kdl_conversions_LIBRARIES} ${Xenomai_RTDM_LIBRARIES})
+if(${OROCOS_TARGET} STREQUAL "xenomai" )
+  target_link_libraries(fricomponent ${orocos_kdl_LIBRARIES} ${kdl_conversions_LIBRARIES} ${Xenomai_RTDM_LIBRARIES})
+else()
+  target_link_libraries(fricomponent ${orocos_kdl_LIBRARIES} ${kdl_conversions_LIBRARIES})
+endif()
 add_dependencies(fricomponent ${PROJECT_NAME}_gencpp)
 
 orocos_component(fridiagnostics src/FRIDiagnostics.cpp)
