@@ -24,11 +24,6 @@ endif()
 include_directories(include ${catkin_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS})
 link_directories(${orocos_kdl_LIBRARY_DIRS})
 
-# Defines the orocos_* cmake macros. See that file for additional
-# documentation.
-include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake)
-add_definitions(-DRTT_COMPONENT)
-add_definitions(-DHAVE_RTNET)
 orocos_component(fricomponent src/FRIComponent.cpp)
 if(${OROCOS_TARGET} STREQUAL "xenomai" )
   target_link_libraries(fricomponent ${orocos_kdl_LIBRARIES} ${kdl_conversions_LIBRARIES} ${Xenomai_RTDM_LIBRARIES})
