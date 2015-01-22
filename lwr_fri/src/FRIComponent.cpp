@@ -48,11 +48,12 @@ typedef Eigen::Matrix<double, 7, 7> Matrix77d;
 
 class FRIComponent : public RTT::TaskContext {
 public:
-  FRIComponent(const std::string & name) : TaskContext(name) {
+  FRIComponent(const std::string & name) : TaskContext(name), prop_joint_offset(7, 0.0) {
 
     prop_fri_port = 49938;
 	
     this->addProperty("fri_port", prop_fri_port);
+    this->addProperty("joint_offset", prop_joint_offset);
 
     this->ports()->addPort("CartesianImpedanceCommand", port_CartesianImpedanceCommand).doc("");
     this->ports()->addPort("CartesianWrenchCommand", port_CartesianWrenchCommand).doc("");
@@ -145,7 +146,7 @@ private:
       for (unsigned int i = 0; i < LBR_MNJ; i++) {
         grav_trq_[i] = m_msr_data.data.gravity[i];
         jnt_trq_[i] = m_msr_data.data.estExtJntTrq[i];
-        jnt_pos_[i] = m_msr_data.data.msrJntPos[i];
+        jnt_pos_[i] = m_msr_data.data.msrJntPos[i] + prop_joint_offset[i];
         jnt_vel_[i] = (jnt_pos_[i] - jnt_pos_old_[i]) / m_msr_data.intf.desiredMsrSampleTime;
         jnt_pos_old_[i] = jnt_pos_[i];
       }
@@ -384,7 +385,7 @@ private:
   RTT::OutputPort<Eigen::VectorXd > port_JointPosition;
 
   int prop_fri_port;
-
+  std::vector<double> prop_joint_offset;
 
   // Start of user code userData
   Eigen::VectorXd jnt_pos_;
