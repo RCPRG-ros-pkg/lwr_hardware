@@ -13,10 +13,10 @@ catkin_package(
 
 find_package(OROCOS-RTT REQUIRED)
 find_package(Eigen REQUIRED)
-find_package(Xenomai REQUIRED)
+find_package(orocos_kdl REQUIRED)
 
 if(${OROCOS_TARGET} STREQUAL "xenomai" )
-  find_package(orocos_kdl REQUIRED)
+  find_package(Xenomai REQUIRED)
   add_definitions(-DHAVE_RTNET)
   add_definitions(-DXENOMAI)
 endif()
