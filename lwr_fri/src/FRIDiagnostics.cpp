@@ -19,10 +19,10 @@ public:
 	
     this->addProperty("prefix", prop_prefix);
 
-    this->ports()->addPort("FRIState", port_FRIState).doc("");
-    this->ports()->addPort("RobotState", port_RobotState).doc("");
+    this->ports()->addPort("FRIState_INPORT", port_FRIState).doc("");
+    this->ports()->addPort("RobotState_INPORT", port_RobotState).doc("");
 
-    this->ports()->addPort("Diagnostics", port_Diagnostics).doc("");
+    this->ports()->addPort("Diagnostics_OUTPORT", port_Diagnostics).doc("");
   }
 
   ~FRIDiagnostics(){
