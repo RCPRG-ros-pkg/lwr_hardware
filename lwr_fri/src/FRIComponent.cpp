@@ -55,25 +55,25 @@ public:
     this->addProperty("fri_port", prop_fri_port);
     this->addProperty("joint_offset", prop_joint_offset);
 
-    this->ports()->addPort("CartesianImpedanceCommand", port_CartesianImpedanceCommand).doc("");
-    this->ports()->addPort("CartesianWrenchCommand", port_CartesianWrenchCommand).doc("");
-    this->ports()->addPort("CartesianPositionCommand", port_CartesianPositionCommand).doc("");
-    this->ports()->addPort("JointImpedanceCommand", port_JointImpedanceCommand).doc("");
-    this->ports()->addPort("JointPositionCommand", port_JointPositionCommand).doc("");
-    this->ports()->addPort("JointTorqueCommand", port_JointTorqueCommand).doc("");
-    this->ports()->addPort("KRL_CMD", port_KRL_CMD).doc("");
+    this->ports()->addPort("CartesianImpedanceCommand_INPORT", port_CartesianImpedanceCommand).doc("");
+    this->ports()->addPort("CartesianWrenchCommand_INPORT", port_CartesianWrenchCommand).doc("");
+    this->ports()->addPort("CartesianPositionCommand_INPORT", port_CartesianPositionCommand).doc("");
+    this->ports()->addPort("JointImpedanceCommand_INPORT", port_JointImpedanceCommand).doc("");
+    this->ports()->addPort("JointPositionCommand_INPORT", port_JointPositionCommand).doc("");
+    this->ports()->addPort("JointTorqueCommand_INPORT", port_JointTorqueCommand).doc("");
+    this->ports()->addPort("KRL_CMD_INPORT", port_KRL_CMD).doc("");
 
-    this->ports()->addPort("CartesianWrench", port_CartesianWrench).doc("");
-    this->ports()->addPort("RobotState", port_RobotState).doc("");
-    this->ports()->addPort("FRIState", port_FRIState).doc("");
-    this->ports()->addPort("JointVelocity", port_JointVelocity).doc("");
-    this->ports()->addPort("CartesianVelocity", port_CartesianVelocity).doc("");
-    this->ports()->addPort("CartesianPosition", port_CartesianPosition).doc("");
-    this->ports()->addPort("MassMatrix", port_MassMatrix).doc("");
-    this->ports()->addPort("Jacobian", port_Jacobian).doc("");
-    this->ports()->addPort("JointTorque", port_JointTorque).doc("");
-    this->ports()->addPort("GravityTorque", port_GravityTorque);
-    this->ports()->addPort("JointPosition", port_JointPosition).doc("");
+    this->ports()->addPort("CartesianWrench_OUTPORT", port_CartesianWrench).doc("");
+    this->ports()->addPort("RobotState_OUTPORT", port_RobotState).doc("");
+    this->ports()->addPort("FRIState_OUTPORT", port_FRIState).doc("");
+    this->ports()->addPort("JointVelocity_OUTPORT", port_JointVelocity).doc("");
+    this->ports()->addPort("CartesianVelocity_OUTPORT", port_CartesianVelocity).doc("");
+    this->ports()->addPort("CartesianPosition_OUTPORT", port_CartesianPosition).doc("");
+    this->ports()->addPort("MassMatrix_OUTPORT", port_MassMatrix).doc("");
+    this->ports()->addPort("Jacobian_OUTPORT", port_Jacobian).doc("");
+    this->ports()->addPort("JointTorque_OUTPORT", port_JointTorque).doc("");
+    this->ports()->addPort("GravityTorque_OUTPORT", port_GravityTorque);
+    this->ports()->addPort("JointPosition_OUTPORT", port_JointPosition).doc("");
   }
 
   ~FRIComponent(){
