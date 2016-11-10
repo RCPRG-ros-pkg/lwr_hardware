@@ -48,32 +48,52 @@ typedef Eigen::Matrix<double, 7, 7> Matrix77d;
 
 class FRIComponent : public RTT::TaskContext {
 public:
-  FRIComponent(const std::string & name) : TaskContext(name), prop_joint_offset(7, 0.0) {
+  FRIComponent(const std::string & name) :
+    TaskContext(name),
+    prop_joint_offset(7, 0.0),
+    port_CartesianImpedanceCommand("CartesianImpedanceCommand_INPORT"),
+    port_CartesianWrenchCommand("CartesianWrenchCommand_INPORT"),
+    port_CartesianPositionCommand("CartesianPositionCommand_INPORT"),
+    port_JointImpedanceCommand("JointImpedanceCommand_INPORT"),
+    port_JointPositionCommand("JointPositionCommand_INPORT"),
+    port_JointTorqueCommand("JointTorqueCommand_INPORT"),
+    port_KRL_CMD("KRL_CMD_INPORT"),
+    port_CartesianWrench("CartesianWrench_OUTPORT", true),
+    port_RobotState("RobotState_OUTPORT", true),
+    port_FRIState("FRIState_OUTPORT", true),
+    port_JointVelocity("JointVelocity_OUTPORT", true),
+    port_CartesianVelocity("CartesianVelocity_OUTPORT", true),
+    port_CartesianPosition("CartesianPosition_OUTPORT", true),
+    port_MassMatrix("MassMatrix_OUTPORT", true),
+    port_Jacobian("Jacobian_OUTPORT", true),
+    port_JointTorque("JointTorque_OUTPORT", true),
+    port_GravityTorque("GravityTorque_OUTPORT", true),
+    port_JointPosition("JointPosition_OUTPORT", true) {
 
     prop_fri_port = 49938;
 	
     this->addProperty("fri_port", prop_fri_port);
     this->addProperty("joint_offset", prop_joint_offset);
 
-    this->ports()->addPort("CartesianImpedanceCommand_INPORT", port_CartesianImpedanceCommand).doc("");
-    this->ports()->addPort("CartesianWrenchCommand_INPORT", port_CartesianWrenchCommand).doc("");
-    this->ports()->addPort("CartesianPositionCommand_INPORT", port_CartesianPositionCommand).doc("");
-    this->ports()->addPort("JointImpedanceCommand_INPORT", port_JointImpedanceCommand).doc("");
-    this->ports()->addPort("JointPositionCommand_INPORT", port_JointPositionCommand).doc("");
-    this->ports()->addPort("JointTorqueCommand_INPORT", port_JointTorqueCommand).doc("");
-    this->ports()->addPort("KRL_CMD_INPORT", port_KRL_CMD).doc("");
+    this->ports()->addPort(port_CartesianImpedanceCommand).doc("");
+    this->ports()->addPort(port_CartesianWrenchCommand).doc("");
+    this->ports()->addPort(port_CartesianPositionCommand).doc("");
+    this->ports()->addPort(port_JointImpedanceCommand).doc("");
+    this->ports()->addPort(port_JointPositionCommand).doc("");
+    this->ports()->addPort(port_JointTorqueCommand).doc("");
+    this->ports()->addPort(port_KRL_CMD).doc("");
 
-    this->ports()->addPort("CartesianWrench_OUTPORT", port_CartesianWrench).doc("");
-    this->ports()->addPort("RobotState_OUTPORT", port_RobotState).doc("");
-    this->ports()->addPort("FRIState_OUTPORT", port_FRIState).doc("");
-    this->ports()->addPort("JointVelocity_OUTPORT", port_JointVelocity).doc("");
-    this->ports()->addPort("CartesianVelocity_OUTPORT", port_CartesianVelocity).doc("");
-    this->ports()->addPort("CartesianPosition_OUTPORT", port_CartesianPosition).doc("");
-    this->ports()->addPort("MassMatrix_OUTPORT", port_MassMatrix).doc("");
-    this->ports()->addPort("Jacobian_OUTPORT", port_Jacobian).doc("");
-    this->ports()->addPort("JointTorque_OUTPORT", port_JointTorque).doc("");
-    this->ports()->addPort("GravityTorque_OUTPORT", port_GravityTorque);
-    this->ports()->addPort("JointPosition_OUTPORT", port_JointPosition).doc("");
+    this->ports()->addPort(port_CartesianWrench).doc("");
+    this->ports()->addPort(port_RobotState).doc("");
+    this->ports()->addPort(port_FRIState).doc("");
+    this->ports()->addPort(port_JointVelocity).doc("");
+    this->ports()->addPort(port_CartesianVelocity).doc("");
+    this->ports()->addPort(port_CartesianPosition).doc("");
+    this->ports()->addPort(port_MassMatrix).doc("");
+    this->ports()->addPort(port_Jacobian).doc("");
+    this->ports()->addPort(port_JointTorque).doc("");
+    this->ports()->addPort(port_GravityTorque);
+    this->ports()->addPort(port_JointPosition).doc("");
   }
 
   ~FRIComponent(){
@@ -81,19 +101,8 @@ public:
 
   bool configureHook() {
     // Start of user code configureHook
-    jnt_pos_.resize(LBR_MNJ);
-    jnt_pos_old_.resize(LBR_MNJ);
-    jnt_vel_.resize(LBR_MNJ);
-    jnt_trq_.resize(LBR_MNJ);
-    grav_trq_.resize(LBR_MNJ);
-    jnt_pos_cmd_.resize(LBR_MNJ);
-    jnt_trq_cmd_.resize(LBR_MNJ);
     jac_.resize(LBR_MNJ);
 
-    port_JointPosition.setDataSample(jnt_pos_);
-    port_JointVelocity.setDataSample(jnt_vel_);
-    port_JointTorque.setDataSample(jnt_trq_);
-    port_GravityTorque.setDataSample(grav_trq_);
     port_Jacobian.setDataSample(jac_);
 
     if (fri_create_socket() != 0)
@@ -363,39 +372,40 @@ private:
     // End of user code
   }
 
+  typedef Eigen::Matrix<double, LBR_MNJ, 1>  Joints;
 
   RTT::InputPort<lwr_fri::CartesianImpedance > port_CartesianImpedanceCommand;
   RTT::InputPort<geometry_msgs::Wrench > port_CartesianWrenchCommand;
   RTT::InputPort<geometry_msgs::Pose > port_CartesianPositionCommand;
   RTT::InputPort<lwr_fri::FriJointImpedance > port_JointImpedanceCommand;
-  RTT::InputPort<Eigen::VectorXd > port_JointPositionCommand;
-  RTT::InputPort<Eigen::VectorXd > port_JointTorqueCommand;
+  RTT::InputPort<Joints > port_JointPositionCommand;
+  RTT::InputPort<Joints > port_JointTorqueCommand;
   RTT::InputPort<std_msgs::Int32 > port_KRL_CMD;
 
   RTT::OutputPort<geometry_msgs::Wrench > port_CartesianWrench;
   RTT::OutputPort<tFriRobotState > port_RobotState;
   RTT::OutputPort<tFriIntfState > port_FRIState;
-  RTT::OutputPort<Eigen::VectorXd > port_JointVelocity;
+  RTT::OutputPort<Joints > port_JointVelocity;
   RTT::OutputPort<geometry_msgs::Twist > port_CartesianVelocity;
   RTT::OutputPort<geometry_msgs::Pose > port_CartesianPosition;
   RTT::OutputPort<Matrix77d > port_MassMatrix;
   RTT::OutputPort<KDL::Jacobian > port_Jacobian;
-  RTT::OutputPort<Eigen::VectorXd > port_JointTorque;
-  RTT::OutputPort<Eigen::VectorXd > port_GravityTorque;
-  RTT::OutputPort<Eigen::VectorXd > port_JointPosition;
+  RTT::OutputPort<Joints > port_JointTorque;
+  RTT::OutputPort<Joints > port_GravityTorque;
+  RTT::OutputPort<Joints > port_JointPosition;
 
   int prop_fri_port;
   std::vector<double> prop_joint_offset;
 
   // Start of user code userData
-  Eigen::VectorXd jnt_pos_;
-  Eigen::VectorXd jnt_pos_old_;
-  Eigen::VectorXd jnt_trq_;
-  Eigen::VectorXd grav_trq_;
-  Eigen::VectorXd jnt_vel_;
+  Joints jnt_pos_;
+  Joints jnt_pos_old_;
+  Joints jnt_trq_;
+  Joints grav_trq_;
+  Joints jnt_vel_;
 
-  Eigen::VectorXd jnt_pos_cmd_;
-  Eigen::VectorXd jnt_trq_cmd_;
+  Joints jnt_pos_cmd_;
+  Joints jnt_trq_cmd_;
 
   KDL::Jacobian jac_;
 
