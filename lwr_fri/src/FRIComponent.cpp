@@ -16,6 +16,9 @@
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Int32.h>
 
+#include <lwr_msgs/FriRobotState.h>
+#include <lwr_msgs/FriIntfState.h>
+
 #include <tf_conversions/tf_kdl.h>
 
 #include <Eigen/Dense>
@@ -350,8 +353,29 @@ private:
       }						//End command mode
 
       //Put robot and fri state on the ports(no parsing)
-      port_RobotState.write(m_msr_data.robot);
-      port_FRIState.write(m_msr_data.intf);
+      lwr_msgs::FriRobotState rs;
+      rs.power = m_msr_data.robot.power;
+      rs.control = m_msr_data.robot.control;
+      rs.error = m_msr_data.robot.error;
+      rs.warning = m_msr_data.robot.warning;
+      for (int i = 0; i < 7; ++i) {
+          rs.temperature[i] = m_msr_data.robot.temperature[i];
+      }
+      port_RobotState.write(rs);
+
+      lwr_msgs::FriIntfState fs;
+      fs.timestamp = m_msr_data.intf.timestamp;
+      fs.state = m_msr_data.intf.state;
+      fs.quality = m_msr_data.intf.quality;
+      fs.desiredMsrSampleTime = m_msr_data.intf.desiredMsrSampleTime;
+      fs.desiredCmdSampleTime = m_msr_data.intf.desiredCmdSampleTime;
+      fs.safetyLimits = m_msr_data.intf.safetyLimits;
+      fs.stat.answerRate = m_msr_data.intf.stat.answerRate;
+      fs.stat.latency = m_msr_data.intf.stat.latency;
+      fs.stat.jitter = m_msr_data.intf.stat.jitter;
+      fs.stat.missRate = m_msr_data.intf.stat.missRate;
+      fs.stat.missCounter = m_msr_data.intf.stat.missCounter;
+      port_FRIState.write(fs);
 
       port_JointPosition.write(jnt_pos_);
       port_JointVelocity.write(jnt_vel_);
@@ -383,8 +407,8 @@ private:
   RTT::InputPort<std_msgs::Int32 > port_KRL_CMD;
 
   RTT::OutputPort<geometry_msgs::Wrench > port_CartesianWrench;
-  RTT::OutputPort<tFriRobotState > port_RobotState;
-  RTT::OutputPort<tFriIntfState > port_FRIState;
+  RTT::OutputPort<lwr_msgs::FriRobotState > port_RobotState;
+  RTT::OutputPort<lwr_msgs::FriIntfState > port_FRIState;
   RTT::OutputPort<Joints > port_JointVelocity;
   RTT::OutputPort<geometry_msgs::Twist > port_CartesianVelocity;
   RTT::OutputPort<geometry_msgs::Pose > port_CartesianPosition;

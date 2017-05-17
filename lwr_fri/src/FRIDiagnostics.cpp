@@ -5,10 +5,12 @@
 
 // Start of user code includes
 #include <diagnostic_msgs/DiagnosticArray.h>
-#include <kuka_lwr_fri/friComm.h>
 #include <boost/lexical_cast.hpp>
 #include <string>
 #include <bitset>
+
+#include <lwr_msgs/FriRobotState.h>
+#include <lwr_msgs/FriIntfState.h>
 // End of user code
 
 class FRIDiagnostics : public RTT::TaskContext {
@@ -79,8 +81,8 @@ private:
 
   void doDiagnostics() {
     // Start of user code Diagnostics
-    tFriIntfState fristate;
-    tFriRobotState robotstate;
+    lwr_msgs::FriIntfState fristate;
+    lwr_msgs::FriRobotState robotstate;
 
     port_FRIState.read(fristate);
     port_RobotState.read(robotstate);
@@ -93,8 +95,8 @@ private:
   }
 
 
-  RTT::InputPort<tFriIntfState > port_FRIState;
-  RTT::InputPort<tFriRobotState > port_RobotState;
+  RTT::InputPort<lwr_msgs::FriIntfState > port_FRIState;
+  RTT::InputPort<lwr_msgs::FriRobotState > port_RobotState;
 
   RTT::OutputPort<diagnostic_msgs::DiagnosticArray > port_Diagnostics;
 
@@ -104,17 +106,17 @@ private:
   // Start of user code userData
   diagnostic_msgs::DiagnosticArray diagnostic_;
 
-  void fri_comm_diagnostics(const tFriIntfState &fristate){
+  void fri_comm_diagnostics(const lwr_msgs::FriIntfState &fristate){
 
-    if(fristate.quality==FRI_QUALITY_PERFECT){
+    if(fristate.quality==lwr_msgs::FriIntfState::FRI_QUALITY_PERFECT){
       diagnostic_.status[0].level = diagnostic_msgs::DiagnosticStatus::OK;
       diagnostic_.status[0].message = "Communication quality PERFECT";
       diagnostic_.status[0].values[2].value = "PERFECT";
-    }else if(fristate.quality==FRI_QUALITY_OK){
+    }else if(fristate.quality==lwr_msgs::FriIntfState::FRI_QUALITY_OK){
       diagnostic_.status[0].level = diagnostic_msgs::DiagnosticStatus::OK;
       diagnostic_.status[0].message = "Communication quality OK";
       diagnostic_.status[0].values[2].value = "OK";
-    }else if(fristate.quality==FRI_QUALITY_BAD){
+    }else if(fristate.quality==lwr_msgs::FriIntfState::FRI_QUALITY_BAD){
       diagnostic_.status[0].level = diagnostic_msgs::DiagnosticStatus::WARN;
       diagnostic_.status[0].message = "Communication quality BAD";
       diagnostic_.status[0].values[2].value = "BAD";
@@ -126,9 +128,9 @@ private:
 
     diagnostic_.status[0].values[0].value = boost::lexical_cast<std::string>(fristate.timestamp);
 
-    if(fristate.state == FRI_STATE_MON){
+    if(fristate.state == lwr_msgs::FriIntfState::FRI_STATE_MON){
       diagnostic_.status[0].values[1].value = "monitor";
-    }else if(fristate.state == FRI_STATE_CMD){
+    }else if(fristate.state == lwr_msgs::FriIntfState::FRI_STATE_CMD){
       diagnostic_.status[0].values[1].value = "command";
     }else{
       diagnostic_.status[0].values[1].value = "invalid";
@@ -156,7 +158,7 @@ private:
 //    stat.add("Total Missed Packages",fristate.stat.missCounter);
   }
 
-  void fri_robot_diagnostics(const tFriRobotState &robotstate){
+  void fri_robot_diagnostics(const lwr_msgs::FriRobotState &robotstate){
 
     std::bitset<7> power(robotstate.power);
     std::bitset<7> error(robotstate.error);
@@ -178,11 +180,11 @@ private:
 
     diagnostic_.status[1].values[0].value = power.to_string();
 
-    if(robotstate.control == FRI_CTRL_POSITION){
+    if(robotstate.control == lwr_msgs::FriRobotState::FRI_CTRL_POSITION){
       diagnostic_.status[1].values[1].value = "Position";
-    } else if(robotstate.control == FRI_CTRL_CART_IMP){
+    } else if(robotstate.control == lwr_msgs::FriRobotState::FRI_CTRL_CART_IMP){
       diagnostic_.status[1].values[1].value = "Cartesian impedance";
-    } else if(robotstate.control == FRI_CTRL_JNT_IMP){
+    } else if(robotstate.control == lwr_msgs::FriRobotState::FRI_CTRL_JNT_IMP){
       diagnostic_.status[1].values[1].value = "Joint impedance";
     } else {
       diagnostic_.status[1].values[1].value = "Invalid";
