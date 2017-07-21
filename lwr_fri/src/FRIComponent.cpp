@@ -52,8 +52,7 @@ typedef Eigen::Matrix<double, 7, 7> Matrix77d;
 class FRIComponent : public RTT::TaskContext {
 public:
   FRIComponent(const std::string & name) :
-    TaskContext(name),
-    prop_joint_offset(7, 0.0),
+    TaskContext(name, PreOperational),
     port_CartesianImpedanceCommand("CartesianImpedanceCommand_INPORT"),
     port_CartesianWrenchCommand("CartesianWrenchCommand_INPORT"),
     port_CartesianPositionCommand("CartesianPositionCommand_INPORT"),
@@ -73,7 +72,7 @@ public:
     port_GravityTorque("GravityTorque_OUTPORT", true),
     port_JointPosition("JointPosition_OUTPORT", true) {
 
-    prop_fri_port = 49938;
+    prop_fri_port = -1;
 	
     this->addProperty("fri_port", prop_fri_port);
     this->addProperty("joint_offset", prop_joint_offset);
@@ -103,13 +102,27 @@ public:
   }
 
   bool configureHook() {
+    RTT::Logger::In in(getName() + "::configureHook");
+
     // Start of user code configureHook
     jac_.resize(LBR_MNJ);
 
     port_Jacobian.setDataSample(jac_);
 
-    if (fri_create_socket() != 0)
-      return false;
+    if (prop_fri_port <= 0) {
+        RTT::log(RTT::Error) << "property 'fri_port' is not set" << RTT::endlog();
+        return false;
+    }
+
+    if (prop_joint_offset.size() != 7) {
+        RTT::log(RTT::Error) << "property 'joint_offset' is not set" << RTT::endlog();
+        return false;
+    }
+
+    if (fri_create_socket() != 0) {
+        RTT::log(RTT::Error) << "could not create socket" << RTT::endlog();
+        return false;
+    }
     // End of user code
     return true;
   }
@@ -143,8 +156,10 @@ private:
     lwr_fri::FriJointImpedance jnt_imp_cmd;
     lwr_fri::CartesianImpedance cart_imp_cmd;
 
+//    std::cout << "reading fri..." << std::endl;
     //Read:
     if (fri_recv() == 0) {
+//      std::cout << "reading fri ok" << std::endl;
 
       KDL::Frame baseFrame(
           KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI / 180.0,
@@ -209,8 +224,10 @@ private:
       //Process KRL CMD
 
       if (!(m_msr_data.krl.boolData & (1 << 0))) {
+//        std::cout << "can send KRL command" << std::endl;
         std_msgs::Int32 x;
         if (port_KRL_CMD.read(x) == RTT::NewData) {
+          std::cout << "read KRL command" << std::endl;
           m_cmd_data.krl.intData[0] = x.data;
           m_cmd_data.krl.boolData |= (1 << 0);
         }
@@ -279,7 +296,6 @@ private:
             } else
               RTT::log(RTT::Warning) << "Size of " << port_JointPositionCommand.getName()
                   << " not equal to " << LBR_MNJ << RTT::endlog();
-
           }
         }
         //Valid ports only in joint impedance mode
@@ -296,6 +312,11 @@ private:
                   << " not equal to " << LBR_MNJ << RTT::endlog();
 
           }
+          else {
+              RTT::log(RTT::Error) << "could not read joint torque command" << RTT::endlog();
+            return;
+          }
+
           //Read desired joint impedance
           if (port_JointImpedanceCommand.read(jnt_imp_cmd) == RTT::NewData) {
             for (unsigned int i = 0; i < LBR_MNJ; i++) {
@@ -322,6 +343,9 @@ private:
             m_cmd_data.cmd.cartPos[3] = cart_pos_cmd.position.x;
             m_cmd_data.cmd.cartPos[7] = cart_pos_cmd.position.y;
             m_cmd_data.cmd.cartPos[11] = cart_pos_cmd.position.z;
+          }
+          else {
+            return;
           }
 
           if (port_CartesianWrenchCommand.read(cart_wrench_cmd) == RTT::NewData) {
@@ -391,8 +415,10 @@ private:
 
       fri_send();
     }
+    else {
+//      std::cout << "reading fri failed" << std::endl;
+    }
 
-    this->trigger();
     // End of user code
   }
 
@@ -449,7 +475,7 @@ private:
         0, (sockaddr*) &m_remote_addr, &m_sock_addr_len);
     if (sizeof(tFriMsrData) != n) {
       RTT::log(RTT::Error) << "bad packet length: " << n << ", expected: "
-          << sizeof(tFriMsrData) << RTT::endlog();
+          << sizeof(tFriMsrData) << "errno: " << errno << RTT::endlog();
       return -1;
     }
     return 0;
@@ -470,10 +496,20 @@ private:
 
   int fri_create_socket() {
 
-    if (m_socket != 0)
+    if (m_socket != 0) {
       rt_dev_close(m_socket);
+    }
     m_socket = rt_dev_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     rt_dev_setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, 0, 0);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 5000;
+
+    if (setsockopt (m_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
+        RTT::log(RTT::Error) << "setsockopt failed" << RTT::endlog();
+        return -2;
+    }
 
     struct sockaddr_in local_addr;
     bzero((char *) &local_addr, sizeof(local_addr));
