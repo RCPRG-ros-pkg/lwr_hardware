@@ -49,6 +49,20 @@
 typedef Eigen::Matrix<double, 7, 7> Matrix77d;
 // End of user code
 
+void timespec_diff(struct timespec *start, struct timespec *stop,
+                   struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
+
 class FRIComponent : public RTT::TaskContext {
 public:
   FRIComponent(const std::string & name) :
@@ -123,6 +137,12 @@ public:
         RTT::log(RTT::Error) << "could not create socket" << RTT::endlog();
         return false;
     }
+    prev_fri_state = FRI_STATE_MON;
+
+    interval_history.resize(100000);
+    interval_history_idx = 0;
+    interval_history_len = 0;
+
     // End of user code
     return true;
   }
@@ -145,6 +165,10 @@ public:
   }
 
 private:
+  std::vector<double> interval_history;
+  int interval_history_idx;
+  int interval_history_len;
+  timespec prev_tp;
 
   void doComm() {
     // Start of user code Comm
@@ -160,6 +184,30 @@ private:
     //Read:
     if (fri_recv() == 0) {
 //      std::cout << "reading fri ok" << std::endl;
+      if (m_msr_data.intf.state == FRI_STATE_MON && prev_fri_state == FRI_STATE_CMD) {
+        RTT::log(RTT::Error) << "LWR switched to monitor mode" << RTT::endlog();
+        for (int i=0; i < interval_history_len; ++i) {
+          int idx = (interval_history_idx+i)%interval_history.size();
+          std::cout << interval_history[idx] << std::endl;
+        }
+        error();
+      }
+      prev_fri_state = m_msr_data.intf.state;
+
+      timespec tp, tp_diff;
+      clock_gettime(CLOCK_REALTIME, &tp);
+      
+      timespec_diff(&prev_tp, &tp, &tp_diff);
+      prev_tp = tp;
+
+      double interval;
+      interval = tp_diff.tv_sec + 0.000000001 * tp_diff.tv_nsec;
+      interval_history[interval_history_idx] = interval;
+      interval_history_idx = (interval_history_idx+1)%interval_history.size();
+      ++interval_history_len;
+      if (interval_history_len > interval_history.size()) {
+        interval_history_len = interval_history.size();
+      }
 
       KDL::Frame baseFrame(
           KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI / 180.0,
@@ -227,7 +275,7 @@ private:
 //        std::cout << "can send KRL command" << std::endl;
         std_msgs::Int32 x;
         if (port_KRL_CMD.read(x) == RTT::NewData) {
-          std::cout << "read KRL command" << std::endl;
+          //std::cout << "read KRL command" << std::endl;
           m_cmd_data.krl.intData[0] = x.data;
           m_cmd_data.krl.boolData |= (1 << 0);
         }
@@ -313,7 +361,8 @@ private:
 
           }
           else {
-              RTT::log(RTT::Error) << "could not read joint torque command" << RTT::endlog();
+            // TODO: allow a few cycles without jnt torque command
+              //RTT::log(RTT::Error) << "could not read joint torque command" << RTT::endlog();
             return;
           }
 
@@ -463,12 +512,14 @@ private:
 
   int m_socket, m_remote_port, m_control_mode;
   std::string joint_names_prefix;
-  uint16_t counter, fri_state_last;
+  uint16_t counter;
   struct sockaddr_in m_remote_addr;
   socklen_t m_sock_addr_len;
 
   tFriMsrData m_msr_data;
   tFriCmdData m_cmd_data;
+
+  fri_uint16_t prev_fri_state;
 
   int fri_recv() {
     int n = rt_dev_recvfrom(m_socket, (void*) &m_msr_data, sizeof(m_msr_data),
