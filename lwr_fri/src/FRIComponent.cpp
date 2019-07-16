@@ -139,7 +139,7 @@ public:
     }
     prev_fri_state = FRI_STATE_MON;
 
-    interval_history.resize(100000);
+    interval_history.resize(10000);
     interval_history_idx = 0;
     interval_history_len = 0;
 
@@ -186,11 +186,11 @@ private:
 //      std::cout << "reading fri ok" << std::endl;
       if (m_msr_data.intf.state == FRI_STATE_MON && prev_fri_state == FRI_STATE_CMD) {
         RTT::log(RTT::Error) << "LWR switched to monitor mode" << RTT::endlog();
-        for (int i=0; i < interval_history_len; ++i) {
-          int idx = (interval_history_idx+i)%interval_history.size();
-          std::cout << interval_history[idx] << std::endl;
-        }
-        error();
+        //for (int i=0; i < interval_history_len; ++i) {
+        //  int idx = (interval_history_idx+i)%interval_history.size();
+        //  std::cout << interval_history[idx] << std::endl;
+        //}
+        //error();
       }
       prev_fri_state = m_msr_data.intf.state;
 
