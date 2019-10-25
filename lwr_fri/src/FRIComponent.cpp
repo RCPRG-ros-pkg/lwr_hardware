@@ -24,6 +24,9 @@
 #include <Eigen/Dense>
 
 #include <vector>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -46,6 +49,8 @@
 #include <rtdm/rtdm.h>
 #endif
 
+#include <std_msgs/Int32.h>
+
 typedef Eigen::Matrix<double, 7, 7> Matrix77d;
 // End of user code
 
@@ -65,6 +70,9 @@ void timespec_diff(struct timespec *start, struct timespec *stop,
 
 class FRIComponent : public RTT::TaskContext {
 public:
+
+  RTT::InputPort<std_msgs::Int32 > port_dbg_cmd_in_;
+
   FRIComponent(const std::string & name) :
     TaskContext(name, PreOperational),
     port_CartesianImpedanceCommand("CartesianImpedanceCommand_INPORT"),
@@ -84,7 +92,8 @@ public:
     port_Jacobian("Jacobian_OUTPORT", true),
     port_JointTorque("JointTorque_OUTPORT", true),
     port_GravityTorque("GravityTorque_OUTPORT", true),
-    port_JointPosition("JointPosition_OUTPORT", true) {
+    port_JointPosition("JointPosition_OUTPORT", true),
+    port_dbg_cmd_in_("dbg_cmd_INPORT") {
 
     prop_fri_port = -1;
 	
@@ -110,6 +119,15 @@ public:
     this->ports()->addPort(port_JointTorque).doc("");
     this->ports()->addPort(port_GravityTorque);
     this->ports()->addPort(port_JointPosition).doc("");
+    this->ports()->addPort(port_dbg_cmd_in_);
+
+    // Allocate space for history for 10 hours
+    int max_timing_history_size = 500 * 60 * 60 * 10; // 500Hz * 60s * 60min * 10h = 18 000 000
+    timing_a_history.resize( max_timing_history_size );
+    timing_b_history.resize( max_timing_history_size );
+    timing_b_valid_history.resize( max_timing_history_size );
+    timing_history_idx = 0;
+    timing_history_len = 0;
   }
 
   ~FRIComponent(){
@@ -139,9 +157,6 @@ public:
     }
     prev_fri_state = FRI_STATE_MON;
 
-    interval_history.resize(10000);
-    interval_history_idx = 0;
-    interval_history_len = 0;
 
     // End of user code
     return true;
@@ -162,12 +177,42 @@ public:
     if( true) {
       doComm();
     }
+    std_msgs::Int32 dbg_cmd;
+    if (port_dbg_cmd_in_.read(dbg_cmd) == RTT::NewData) {
+        if (dbg_cmd.data == 0) {
+            //error();
+            writeTimingLog();
+        }
+    }
+  }
+
+  void writeTimingLog() {
+     std::ofstream logfile;
+
+     std::ostringstream ss;
+     ss << "/tmp/lwr_" << prop_fri_port << "_timings.txt";
+
+     logfile.open (ss.str());
+     std::cout << "writing timing log " << timing_history_len << " items" << std::endl;
+     for (int i = 0; i < timing_history_len; ++i) {
+       if (i%1000 == 0) {
+           std::cout << "timing log " << i << "/" << timing_history_len << std::endl;
+       }
+       int idx = (i + timing_history_idx + timing_a_history.size() - timing_history_len) % timing_a_history.size();
+       logfile << timing_a_history[idx].tv_sec << " " << timing_a_history[idx].tv_nsec << " " <<
+                  timing_b_history[idx].tv_sec << " " << timing_b_history[idx].tv_nsec << " " <<
+                  timing_b_valid_history[idx] << "\n";
+     }
+     logfile.close();
+     std::cout << "writing timing log DONE" << std::endl;
   }
 
 private:
-  std::vector<double> interval_history;
-  int interval_history_idx;
-  int interval_history_len;
+  std::vector<timespec > timing_a_history;
+  std::vector<timespec > timing_b_history;
+  std::vector<bool > timing_b_valid_history;
+  int timing_history_idx;
+  int timing_history_len;
   timespec prev_tp;
 
   void doComm() {
@@ -182,7 +227,12 @@ private:
 
 //    std::cout << "reading fri..." << std::endl;
     //Read:
-    if (fri_recv() == 0) {
+    timespec tp_a;
+    timespec tp_b;
+    bool tp_b_valid = false;
+    int rec_result = fri_recv();
+    clock_gettime(CLOCK_REALTIME, &tp_a);
+    if (rec_result == 0) {
 //      std::cout << "reading fri ok" << std::endl;
       if (m_msr_data.intf.state == FRI_STATE_MON && prev_fri_state == FRI_STATE_CMD) {
         RTT::log(RTT::Error) << "LWR switched to monitor mode" << RTT::endlog();
@@ -194,20 +244,20 @@ private:
       }
       prev_fri_state = m_msr_data.intf.state;
 
-      timespec tp, tp_diff;
-      clock_gettime(CLOCK_REALTIME, &tp);
+      //timespec tp, tp_diff;
+      //clock_gettime(CLOCK_REALTIME, &tp);
       
-      timespec_diff(&prev_tp, &tp, &tp_diff);
-      prev_tp = tp;
+      //timespec_diff(&prev_tp, &tp, &tp_diff);
+      //prev_tp = tp;
 
-      double interval;
-      interval = tp_diff.tv_sec + 0.000000001 * tp_diff.tv_nsec;
-      interval_history[interval_history_idx] = interval;
-      interval_history_idx = (interval_history_idx+1)%interval_history.size();
-      ++interval_history_len;
-      if (interval_history_len > interval_history.size()) {
-        interval_history_len = interval_history.size();
-      }
+      //double interval;
+      //interval = tp_diff.tv_sec + 0.000000001 * tp_diff.tv_nsec;
+      //interval_history[interval_history_idx] = interval;
+      //interval_history_idx = (interval_history_idx+1)%interval_history.size();
+      //++interval_history_len;
+      //if (interval_history_len > interval_history.size()) {
+        //interval_history_len = interval_history.size();
+      //}
 
       KDL::Frame baseFrame(
           KDL::Rotation::RPY(m_msr_data.krl.realData[3] * M_PI / 180.0,
@@ -463,9 +513,23 @@ private:
       port_MassMatrix.write(mass);
 
       fri_send();
+
+      tp_b_valid = true;
+      clock_gettime(CLOCK_REALTIME, &tp_b);
+
+
     }
     else {
 //      std::cout << "reading fri failed" << std::endl;
+    }
+
+    timing_a_history[timing_history_idx] = tp_a;
+    timing_b_history[timing_history_idx] = tp_b;
+    timing_b_valid_history[timing_history_idx] = tp_b_valid;
+    timing_history_idx = (timing_history_idx+1)%timing_a_history.size();
+    ++timing_history_len;
+    if (timing_history_len > timing_a_history.size()) {
+      timing_history_len = timing_a_history.size();
     }
 
     // End of user code
@@ -529,10 +593,12 @@ private:
           << sizeof(tFriMsrData) << "errno: " << errno << RTT::endlog();
       return -1;
     }
+	
     return 0;
   }
 
   int fri_send() {
+	 
     if (0
         > rt_dev_sendto(m_socket, (void*) &m_cmd_data, sizeof(m_cmd_data), 0,
             (sockaddr*) &m_remote_addr, m_sock_addr_len)) {
@@ -540,6 +606,7 @@ private:
           << ntohs(m_remote_addr.sin_port) << RTT::endlog();
       return -1;
     }
+  
     return 0;
   }
 
