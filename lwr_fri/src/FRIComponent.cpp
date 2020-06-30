@@ -235,7 +235,7 @@ private:
     if (rec_result == 0) {
 //      std::cout << "reading fri ok" << std::endl;
       if (m_msr_data.intf.state == FRI_STATE_MON && prev_fri_state == FRI_STATE_CMD) {
-        RTT::log(RTT::Error) << "LWR switched to monitor mode" << RTT::endlog();
+        //RTT::log(RTT::Error) << "LWR switched to monitor mode" << RTT::endlog();
         //for (int i=0; i < interval_history_len; ++i) {
         //  int idx = (interval_history_idx+i)%interval_history.size();
         //  std::cout << interval_history[idx] << std::endl;
@@ -325,9 +325,18 @@ private:
 //        std::cout << "can send KRL command" << std::endl;
         std_msgs::Int32 x;
         if (port_KRL_CMD.read(x) == RTT::NewData) {
-          //std::cout << "read KRL command" << std::endl;
-          m_cmd_data.krl.intData[0] = x.data;
-          m_cmd_data.krl.boolData |= (1 << 0);
+          if (x.data == FRI_STATE_MON) {
+            //std::cout << "read KRL command" << std::endl;
+            m_cmd_data.krl.intData[0] = 2;
+            m_cmd_data.krl.boolData |= (1 << 0);
+          }
+          else if (x.data == FRI_STATE_CMD) {
+            m_cmd_data.krl.intData[0] = 1;
+            m_cmd_data.krl.boolData |= (1 << 0);
+          }
+          else {
+            std::cout << "wrong KRL_CMD: " << x.data << std::endl;
+          }
         }
       } else {
         m_cmd_data.krl.boolData &= ~(1 << 0);
